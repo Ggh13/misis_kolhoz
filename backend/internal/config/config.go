@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"goproject/pkg/logger"
-	"goproject/pkg/postgres"
+	"misis_kolhoz/pkg/logger"
+	"misis_kolhoz/pkg/postgres"
 
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"

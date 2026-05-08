@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: misis_kolhoz-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mydb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongo:
+    image: mongo:7
+    container_name: misis_kolhoz-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: mydb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: ./backend
+    container_name: misis_kolhoz-app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend/config.yaml:/app/config.yaml:ro
+    environment:
+      - CONFIG_PATH=/app/config.yaml
+    networks:
+      - app-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mongo_data:

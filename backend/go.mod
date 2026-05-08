@@ -1,4 +1,4 @@
-module goproject
+module misis_kolhoz
 
 go 1.23
 

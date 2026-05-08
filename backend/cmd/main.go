@@ -5,10 +5,10 @@ import (
 	"os"
 	"os/signal"
 
-	"goproject/internal/config"
-	"goproject/internal/transport/rest"
-	"goproject/pkg/logger"
-	"goproject/pkg/postgres"
+	"misis_kolhoz/internal/config"
+	"misis_kolhoz/internal/transport/rest"
+	"misis_kolhoz/pkg/logger"
+	"misis_kolhoz/pkg/postgres"
 
 	"go.uber.org/zap"
 )

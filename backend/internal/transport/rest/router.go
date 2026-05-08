@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"goproject/internal/config"
-	"goproject/pkg/logger"
+	"misis_kolhoz/internal/config"
+	"misis_kolhoz/pkg/logger"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
