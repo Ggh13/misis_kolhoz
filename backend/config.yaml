@@ -1,0 +1,24 @@
+rest_port: "8080"
+rest_host: "0.0.0.0"
+
+postgres:
+  host: "postgres"
+  port: 5432
+  username: "postgres"
+  password: "password"
+  database: "mydb"
+  min_conns: 2
+  max_conns: 10
+
+mongo:
+  host: "mongo"
+  port: 27017
+  username: "root"
+  password: "password"
+  database: "mydb"
+  auth_source: "admin"
+
+s3:
+  endpoint: ""
+  bucket: ""
+  region: "us-east-1"
