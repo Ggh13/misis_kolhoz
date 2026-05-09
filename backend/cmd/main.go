@@ -6,6 +6,9 @@ import (
 	"os/signal"
 
 	"misis_kolhoz/internal/config"
+	farmerrepository "misis_kolhoz/internal/farmer/repository"
+	farmerservice "misis_kolhoz/internal/farmer/service"
+	farmerhandler "misis_kolhoz/internal/farmer/handler"
 	"misis_kolhoz/internal/transport/rest"
 	"misis_kolhoz/pkg/logger"
 	"misis_kolhoz/pkg/postgres"
@@ -36,7 +39,11 @@ func main() {
 	}
 	logger.GetLoggerFromCtx(ctx).Info(ctx, "Succesfully connected to pgDB")
 
-	r, err := rest.NewRouter(ctx, cfg)
+	farmerRepo := farmerrepository.NewRepository(pgDB)
+	farmerService := farmerservice.NewService(farmerRepo)
+	farmerHandler := farmerhandler.NewHandler(farmerService)
+
+	r, err := rest.NewRouter(ctx, cfg, farmerHandler)
 	if err != nil {
 		logger.GetLoggerFromCtx(ctx).Info(ctx, "Failed create router")
 	}

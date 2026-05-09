@@ -1,76 +1,62 @@
-# Go Project Template
-
-## Структура проекта
-
-```
-cmd/                    # Точка входа
-internal/config/        # Конфигурация
-internal/transport/rest/ # HTTP роутер
-pkg/logger/             # Логгер
-pkg/postgres/           # PostgreSQL клиент
-pkg/mongo/              # MongoDB клиент
-pkg/s3Storage/          # S3 клиент
-config.yaml             # Конфигурация
-Dockerfile              # Сборка образа
-docker-compose.yml      # Запуск сервисов
-Makefile                # Команды
-```
-
-## Требования
-
-- Go 1.22+
-- Docker + Docker Compose
+# misis_kolhoz Backend
 
 ## Запуск
 
-### Локально
+### Docker Compose (рекомендуется)
 
 ```bash
-# Установка зависимостей
+docker-compose up --build
+```
+
+Приложение будет доступно по адресу: http://localhost:8080
+
+### Запуск без Docker
+
+```bash
+cd backend
 go mod download
-
-# Запуск
-go run ./cmd
+go run cmd/main.go
 ```
 
-### Docker
+## API Endpoints
+
+### POST /upload_data
+Загружает данные из Excel файла `internal/moked_data/farmers_sku.xlsx` в базу данных PostgreSQL.
+
+**Response:** `200 OK` - "Successfully loaded data from excel"
+
+### GET /farmer_data/:id
+Возвращает информацию о конкретном фермере по ID (organization_id из xlsx).
+
+**Response:** `200 OK` - JSON с данными фермера и его продукцией
+
+## Остановка
 
 ```bash
-# Сборка и запуск
-make up
-
-# Остановка
-make down
-
-# Пересборка
-make build
+docker-compose down
 ```
 
-## Команды Makefile
+Для остановки с удалением контейнеров (без volumes):
+```bash
+docker-compose down -v
+```
 
-| Команда | Описание |
-|---------|----------|
-| `make build` | Сборка Docker образа |
-| `make up` | Запуск всех сервисов |
-| `make down` | Остановка всех сервисов |
-| `make clean` | Остановка с удалением томов |
-| `make run` | Запуск локально без Docker |
-| `make test` | Запуск тестов |
-| `make tidy` | Обновление зависимостей |
+## Тесты
 
-## Конфигурация
+Запуск всех тестов:
+```bash
+go test ./... -v
+```
 
-Настройки хранятся в `config.yaml`:
-
-- `rest_host` / `rest_port` - адрес HTTP сервера
-- `postgres` - подключение к PostgreSQL
-- `mongo` - подключение к MongoDB
-- `s3` - настройки S3
-
-## Эндпоинты
-
-- `GET /health` - проверка здоровья сервиса
+Запуск тестов конкретного пакета:
+```bash
+go test ./internal/farmer/handler/... -v
+```
 
 ## Переменные окружения
 
-- `CONFIG_PATH` - путь к конфигурационному файлу (по умолчанию `config.yaml`)
+Настройки хранятся в `config.yaml`. Основные параметры:
+
+- `rest_host` - хост REST API (по умолчанию 0.0.0.0)
+- `rest_port` - порт REST API (по умолчанию 8080)
+- PostgreSQL, MongoDB, S3 настраиваются в соответствующих секциях

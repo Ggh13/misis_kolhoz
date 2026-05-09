@@ -14,6 +14,7 @@ WORKDIR /app
 
 COPY --from=builder /app/server .
 COPY --from=builder /app/config.yaml ./config.yaml
+COPY --from=builder /app/internal/moked_data/farmers_sku.xlsx ./internal/moked_data/farmers_sku.xlsx
 
 EXPOSE 8080
 CMD ["./server"]

@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"misis_kolhoz/internal/config"
+	farmerhandler "misis_kolhoz/internal/farmer/handler"
+	farmerrouter "misis_kolhoz/internal/farmer/router"
 	"misis_kolhoz/pkg/logger"
 
 	"github.com/gin-gonic/gin"
@@ -16,12 +18,14 @@ type Router struct {
 	httpServer *http.Server
 }
 
-func NewRouter(ctx context.Context, cfg *config.Config) (*Router, error) {
+func NewRouter(ctx context.Context, cfg *config.Config, farmerH *farmerhandler.Handler) (*Router, error) {
 	router := gin.Default()
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+
+	farmerrouter.Transport(router, farmerH, ctx)
 
 	return &Router{
 		httpServer: &http.Server{
