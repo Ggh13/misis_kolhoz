@@ -9,9 +9,13 @@ import (
 	farmerrepository "misis_kolhoz/internal/farmer/repository"
 	farmerservice "misis_kolhoz/internal/farmer/service"
 	farmerhandler "misis_kolhoz/internal/farmer/handler"
+	vectorrepository "misis_kolhoz/internal/vector/repository"
+	vectorservice "misis_kolhoz/internal/vector/service"
+	vectorhandler "misis_kolhoz/internal/vector/handler"
 	"misis_kolhoz/internal/transport/rest"
 	"misis_kolhoz/pkg/logger"
 	"misis_kolhoz/pkg/postgres"
+	"misis_kolhoz/pkg/qdrant"
 
 	"go.uber.org/zap"
 )
@@ -43,7 +47,22 @@ func main() {
 	farmerService := farmerservice.NewService(farmerRepo)
 	farmerHandler := farmerhandler.NewHandler(farmerService)
 
-	r, err := rest.NewRouter(ctx, cfg, farmerHandler)
+	qdrantClient, err := qdrant.NewQdrant(ctx, &qdrant.Config{
+		Host:           cfg.QdrantCFG.Host,
+		Port:           cfg.QdrantCFG.Port,
+		CollectionName: cfg.QdrantCFG.CollectionName,
+		VectorSize:     cfg.QdrantCFG.VectorSize,
+	})
+	if err != nil {
+		logger.GetLoggerFromCtx(ctx).Fatal(ctx, "Failed connect to qdrant", zap.Error(err))
+	}
+	logger.GetLoggerFromCtx(ctx).Info(ctx, "Succesfully connected to qdrant")
+
+	vectorRepo := vectorrepository.NewVectorRepository(qdrantClient, cfg.QdrantCFG.CollectionName)
+	vectorService := vectorservice.NewVectorService(vectorRepo)
+	vectorHandler := vectorhandler.NewVectorHandler(vectorService)
+
+	r, err := rest.NewRouter(ctx, cfg, farmerHandler, vectorHandler)
 	if err != nil {
 		logger.GetLoggerFromCtx(ctx).Info(ctx, "Failed create router")
 	}

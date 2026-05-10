@@ -22,3 +22,9 @@ s3:
   endpoint: ""
   bucket: ""
   region: "us-east-1"
+
+qdrant:
+  host: "localhost"
+  port: 6333
+  collection_name: "vectors"
+  vector_size: 1536

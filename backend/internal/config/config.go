@@ -7,6 +7,7 @@ import (
 
 	"misis_kolhoz/pkg/logger"
 	"misis_kolhoz/pkg/postgres"
+	"misis_kolhoz/pkg/qdrant"
 
 	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
@@ -18,9 +19,11 @@ type Config struct {
 	PostgresCFG PostgresConfig `yaml:"postgres"`
 	MongoCFG    MongoConfig    `yaml:"mongo"`
 	S3CFG       S3Config       `yaml:"s3"`
+	QdrantCFG   QdrantConfig   `yaml:"qdrant"`
 }
 
 type PostgresConfig = postgres.Config
+type QdrantConfig = qdrant.Config
 
 type MongoConfig struct {
 	Host       string `yaml:"host" env-default:"mongo"`
