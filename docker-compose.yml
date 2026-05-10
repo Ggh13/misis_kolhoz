@@ -19,25 +19,17 @@ services:
       timeout: 5s
       retries: 5
 
-  mongo:
-    image: mongo:7
-    container_name: misis_kolhoz-mongo
+  qdrant:
+    image: qdrant/qdrant:v1.17.0
+    container_name: misis_kolhoz-qdrant
     restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: password
-      MONGO_INITDB_DATABASE: mydb
     ports:
-      - "27017:27017"
+      - "6333:6333"
+      - "6334:6334"
     volumes:
-      - mongo_data:/data/db
+      - qdrant_data:/qdrant/storage
     networks:
       - app-network
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   app:
     build: ./backend
@@ -54,6 +46,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      qdrant:
+        condition: service_started
 
 networks:
   app-network:
@@ -61,4 +55,4 @@ networks:
 
 volumes:
   postgres_data:
-  mongo_data:
+  qdrant_data:

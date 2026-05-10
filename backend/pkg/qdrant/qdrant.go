@@ -15,8 +15,9 @@ type Config struct {
 
 func NewQdrant(ctx context.Context, cfg *Config) (*qdrant.Client, error) {
 	client, err := qdrant.NewClient(&qdrant.Config{
-		Host: cfg.Host,
-		Port: cfg.Port,
+		Host:                     cfg.Host,
+		Port:                     cfg.Port,
+		SkipCompatibilityCheck:   true,
 	})
 	if err != nil {
 		return nil, err

@@ -24,7 +24,7 @@ s3:
   region: "us-east-1"
 
 qdrant:
-  host: "localhost"
-  port: 6333
+  host: "qdrant"
+  port: 6334
   collection_name: "vectors"
   vector_size: 1536
