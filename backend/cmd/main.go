@@ -6,13 +6,16 @@ import (
 	"os/signal"
 
 	"misis_kolhoz/internal/config"
+	farmerhandler "misis_kolhoz/internal/farmer/handler"
 	farmerrepository "misis_kolhoz/internal/farmer/repository"
 	farmerservice "misis_kolhoz/internal/farmer/service"
-	farmerhandler "misis_kolhoz/internal/farmer/handler"
+	loyaltyhandler "misis_kolhoz/internal/loyalty/handler"
+	loyaltyrepository "misis_kolhoz/internal/loyalty/repository"
+	loyaltyservice "misis_kolhoz/internal/loyalty/service"
+	"misis_kolhoz/internal/transport/rest"
+	vectorhandler "misis_kolhoz/internal/vector/handler"
 	vectorrepository "misis_kolhoz/internal/vector/repository"
 	vectorservice "misis_kolhoz/internal/vector/service"
-	vectorhandler "misis_kolhoz/internal/vector/handler"
-	"misis_kolhoz/internal/transport/rest"
 	"misis_kolhoz/pkg/logger"
 	"misis_kolhoz/pkg/postgres"
 	"misis_kolhoz/pkg/qdrant"
@@ -62,7 +65,11 @@ func main() {
 	vectorService := vectorservice.NewVectorService(vectorRepo)
 	vectorHandler := vectorhandler.NewVectorHandler(vectorService)
 
-	r, err := rest.NewRouter(ctx, cfg, farmerHandler, vectorHandler)
+	loyaltyRepo := loyaltyrepository.NewRepository(pgDB)
+	loyaltyService := loyaltyservice.NewService(loyaltyRepo)
+	loyaltyHandler := loyaltyhandler.NewHandler(loyaltyService)
+
+	r, err := rest.NewRouter(ctx, cfg, farmerHandler, vectorHandler, loyaltyHandler)
 	if err != nil {
 		logger.GetLoggerFromCtx(ctx).Info(ctx, "Failed create router")
 	}

@@ -127,6 +127,59 @@ go run cmd/main.go
 {"status": "ok"}
 ```
 
+### Loyalty System (Client Bonuses)
+
+#### POST /load_orders
+Загружает данные заказов из Excel файла `internal/moked_data/orders.xlsx` и начисляет бонусы клиентам.
+Бонус = 5% от суммы заказа, если заказ >= 1000 руб.
+
+**Response:** `200 OK` - "Successfully loaded orders and bonuses"
+
+#### GET /clients
+Возвращает список всех клиентов.
+
+**Response:** `200 OK`
+```json
+[
+  {"id": 1, "name": "", "email": "", "phone": "", "created_at": "2026-05-11T20:18:13Z"},
+  ...
+]
+```
+
+#### GET /client_bonus/:id
+Возвращает информацию о бонусах клиента по ID.
+
+**Response:** `200 OK`
+```json
+{
+  "client": {"id": 2, "name": "", "email": "", "phone": "", "created_at": "..."},
+  "balance": 3340,
+  "transactions": [
+    {"id": 19, "client_id": 2, "type": "accrual", "amount": 480, "order_id": 0, "created_at": "..."},
+    ...
+  ]
+}
+```
+
+**Response:** `404 Not Found` - если клиент не найден
+
+#### POST /spend_bonus/:id
+Списать бонусы клиента.
+
+**Request Body:**
+```json
+{
+  "amount": 100
+}
+```
+
+**Response:** `200 OK`
+```json
+{"message": "bonus spent successfully"}
+```
+
+**Response:** `400 Bad Request` - недостаточно бонусов или ошибка
+
 ## Остановка
 
 ```bash
