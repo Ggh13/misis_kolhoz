@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+import pandas as pd
 from dotenv import load_dotenv
 from openai import OpenAI, RateLimitError, APIError
 
@@ -89,7 +90,78 @@ class FeatureExtractor:
         except (json.JSONDecodeError, APIError) as e:
             return {}
 
+
+def _normalize_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, float) and pd.isna(value):
+        return ""
+    return str(value).strip()
+
+
+def extract_from_table_xlsx(table_path: str, extractor: FeatureExtractor) -> List[Dict[str, Any]]:
+    df = pd.read_excel(table_path)
+    results: List[Dict[str, Any]] = []
+
+    for _, row in df.iterrows():
+        farmer_text = _normalize_text(row.get("farmer_description", ""))
+        product_text = _normalize_text(row.get("product_description", ""))
+
+        farmer_features = (
+            extractor.extract_farm_features(farmer_text) if farmer_text else {}
+        )
+        product_features = (
+            extractor.extract_product_features(product_text) if product_text else {}
+        )
+
+        results.append(
+            {
+                "organization_id": row.get("organization_id"),
+                "product_id": row.get("product_id"),
+                "farmer_features": farmer_features,
+                "product_features": product_features,
+            }
+        )
+
+    return results
+
+
+def extract_for_product_id(
+    table_path: str, product_id: Any, extractor: FeatureExtractor
+) -> Dict[str, Any]:
+    df = pd.read_excel(table_path)
+    matched = df[df["product_id"] == product_id]
+    if matched.empty:
+        raise ValueError(f"product_id not found: {product_id}")
+
+    row = matched.iloc[0]
+    farmer_text = _normalize_text(row.get("farmer_description", ""))
+    product_text = _normalize_text(row.get("product_description", ""))
+
+    farmer_features = (
+        extractor.extract_farm_features(farmer_text) if farmer_text else {}
+    )
+    product_features = (
+        extractor.extract_product_features(product_text) if product_text else {}
+    )
+
+    return {
+        "organization_id": row.get("organization_id"),
+        "product_id": row.get("product_id"),
+        "farmer_features": farmer_features,
+        "product_features": product_features,
+    }
+
 def build_default_extractor() -> FeatureExtractor:
     load_dotenv()
     api_key = os.getenv("GROQ_API_KEY")
     return FeatureExtractor(GroqConfig(api_key=api_key))
+
+
+__all__ = [
+    "FeatureExtractor",
+    "GroqConfig",
+    "build_default_extractor",
+    "extract_from_table_xlsx",
+    "extract_for_product_id",
+]
