@@ -10,6 +10,8 @@ import (
 	farmerrouter "misis_kolhoz/internal/farmer/router"
 	loyaltyhandler "misis_kolhoz/internal/loyalty/handler"
 	loyaltyrouter "misis_kolhoz/internal/loyalty/router"
+	recommendationhandler "misis_kolhoz/internal/recommendation/handler"
+	recommendationrouter "misis_kolhoz/internal/recommendation/router"
 	vectorhandler "misis_kolhoz/internal/vector/handler"
 	vectorrouter "misis_kolhoz/internal/vector/router"
 	"misis_kolhoz/pkg/logger"
@@ -22,7 +24,7 @@ type Router struct {
 	httpServer *http.Server
 }
 
-func NewRouter(ctx context.Context, cfg *config.Config, farmerH *farmerhandler.Handler, vectorH *vectorhandler.VectorHandler, loyaltyH *loyaltyhandler.Handler) (*Router, error) {
+func NewRouter(ctx context.Context, cfg *config.Config, farmerH *farmerhandler.Handler, vectorH *vectorhandler.VectorHandler, loyaltyH *loyaltyhandler.Handler, recommendationH *recommendationhandler.Handler) (*Router, error) {
 	router := gin.Default()
 
 	router.GET("/health", func(c *gin.Context) {
@@ -32,6 +34,7 @@ func NewRouter(ctx context.Context, cfg *config.Config, farmerH *farmerhandler.H
 	farmerrouter.Transport(router, farmerH, ctx)
 	vectorrouter.NewRouter(router, vectorH)
 	loyaltyrouter.Transport(router, loyaltyH, ctx)
+	recommendationrouter.Transport(router, recommendationH, ctx)
 
 	return &Router{
 		httpServer: &http.Server{

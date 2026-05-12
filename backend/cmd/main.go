@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"time"
 
 	"misis_kolhoz/internal/config"
 	farmerhandler "misis_kolhoz/internal/farmer/handler"
@@ -12,6 +13,9 @@ import (
 	loyaltyhandler "misis_kolhoz/internal/loyalty/handler"
 	loyaltyrepository "misis_kolhoz/internal/loyalty/repository"
 	loyaltyservice "misis_kolhoz/internal/loyalty/service"
+	recommendationhandler "misis_kolhoz/internal/recommendation/handler"
+	recommendationrepository "misis_kolhoz/internal/recommendation/repository"
+	recommendationservice "misis_kolhoz/internal/recommendation/service"
 	"misis_kolhoz/internal/transport/rest"
 	vectorhandler "misis_kolhoz/internal/vector/handler"
 	vectorrepository "misis_kolhoz/internal/vector/repository"
@@ -50,6 +54,14 @@ func main() {
 	farmerService := farmerservice.NewService(farmerRepo)
 	farmerHandler := farmerhandler.NewHandler(farmerService)
 
+	recommendationRepo := recommendationrepository.NewRepository(pgDB)
+	recommendationService := recommendationservice.NewService(recommendationRepo)
+	ordersFilePath := resolveLocalOrDockerPath("internal/moked_data/orders.xlsx")
+	if err := recommendationService.StartPeriodicRefresh(ctx, ordersFilePath, time.Minute); err != nil {
+		logger.GetLoggerFromCtx(ctx).Info(ctx, "Recommendations will retry refresh in background", zap.Error(err), zap.String("filePath", ordersFilePath))
+	}
+	recommendationHandler := recommendationhandler.NewHandler(recommendationService)
+
 	qdrantClient, err := qdrant.NewQdrant(ctx, &qdrant.Config{
 		Host:           cfg.QdrantCFG.Host,
 		Port:           cfg.QdrantCFG.Port,
@@ -69,7 +81,7 @@ func main() {
 	loyaltyService := loyaltyservice.NewService(loyaltyRepo)
 	loyaltyHandler := loyaltyhandler.NewHandler(loyaltyService)
 
-	r, err := rest.NewRouter(ctx, cfg, farmerHandler, vectorHandler, loyaltyHandler)
+	r, err := rest.NewRouter(ctx, cfg, farmerHandler, vectorHandler, loyaltyHandler, recommendationHandler)
 	if err != nil {
 		logger.GetLoggerFromCtx(ctx).Info(ctx, "Failed create router")
 	}
@@ -79,4 +91,12 @@ func main() {
 	<-ctx.Done()
 	pgDB.Close()
 	logger.GetLoggerFromCtx(ctx).Info(ctx, "Server Stopped")
+}
+
+func resolveLocalOrDockerPath(path string) string {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return "/app/" + path
+	}
+
+	return path
 }
