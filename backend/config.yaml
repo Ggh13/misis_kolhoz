@@ -9,16 +9,3 @@ postgres:
   database: "mydb"
   min_conns: 2
   max_conns: 10
-
-mongo:
-  host: "mongo"
-  port: 27017
-  username: "root"
-  password: "password"
-  database: "mydb"
-  auth_source: "admin"
-
-s3:
-  endpoint: ""
-  bucket: ""
-  region: "us-east-1"
