@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from embedder.emb import build_event_payload, build_product_payload
+from embedder.emb import build_event_payload, build_product_payload, e5_embs
 from extractor import build_default_extractor
 
 load_dotenv()
@@ -83,6 +83,17 @@ def embed_event(data: EmbedEventRequest):
 		return build_event_payload(data.event_name, data.event_description)
 	except ValueError:
 		raise HTTPException(status_code=400, detail="Injection detected")
+
+
+class EmbedTextRequest(BaseModel):
+	text: str
+
+
+@app.post("/embed/text")
+def embed_text(data: EmbedTextRequest):
+	"""Fast E5 embedding without Groq extract or injection check."""
+	emb = e5_embs(data.text, "passage: ")
+	return {"embedding": emb}
 
 
 @app.post("/pipeline/full")

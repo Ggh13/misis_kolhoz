@@ -35,7 +35,7 @@ func (h *Handler) UploadData(contx context.Context) gin.HandlerFunc {
 			return
 		}
 
-		ctx.JSON(200, "Successfully loaded data from excel")
+		ctx.JSON(200, "Successfully loaded data from excel. Run reseed script for embeddings.")
 	}
 }
 

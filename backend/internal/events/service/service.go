@@ -97,13 +97,17 @@ func (s *Service) processSheet(ctx context.Context, f *excelize.File, sheetName 
 		return false, nil
 	}
 
+	dateColLetter, _ := excelize.ColumnNumberToName(dateIdx + 1)
+
 	for rowIdx := 1; rowIdx < len(rows); rowIdx++ {
 		row := rows[rowIdx]
 
 		event := eventmodel.EventEmbedding{Embedding: make([]float32, 384)}
-		if dateIdx < len(row) {
-			event.EventDate = strings.TrimSpace(row[dateIdx])
-		}
+
+		// Читаем дату через RawCellValue — Excel может хранить её как serial number
+		axis := fmt.Sprintf("%s%d", dateColLetter, rowIdx+1)
+		dateRaw, _ := f.GetCellValue(sheetName, axis, excelize.Options{RawCellValue: true})
+		event.EventDate = strings.TrimSpace(dateRaw)
 		if holidayIdx < len(row) {
 			event.HolidayInfo = strings.TrimSpace(row[holidayIdx])
 		}
@@ -188,6 +192,15 @@ func parseEventDate(raw string) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("empty date")
 	}
 
+	// Сначала пробуем Excel serial number (e.g. "46023", "46023.0")
+	// Должен быть ДО normalizeDateValue, иначе точка в "46023.0" будет
+	// интерпретирована как day.month separator
+	if num, err := strconv.ParseFloat(strings.ReplaceAll(raw, ",", "."), 64); err == nil {
+		if t, err := excelize.ExcelDateToTime(num, false); err == nil {
+			return t, nil
+		}
+	}
+
 	raw = normalizeDateValue(raw)
 
 	layouts := []string{
@@ -201,12 +214,6 @@ func parseEventDate(raw string) (time.Time, error) {
 
 	for _, layout := range layouts {
 		if t, err := time.Parse(layout, raw); err == nil {
-			return t, nil
-		}
-	}
-
-	if num, err := strconv.ParseFloat(strings.ReplaceAll(raw, ",", "."), 64); err == nil {
-		if t, err := excelize.ExcelDateToTime(num, false); err == nil {
 			return t, nil
 		}
 	}

@@ -1,81 +1,169 @@
-import { useState, useEffect } from "react";
-import axios from "axios";
-import "./App.css";
-import DataUpload from "./components/DataUpload";
-import FarmerSearch from "./components/FarmerSearch";
-import Clients from "./components/Clients";
-import Recommendations from "./components/Recommendations";
+import { useState, useCallback, useMemo } from 'react';
+import { Sidebar } from './components/Sidebar';
+import { Dashboard } from './components/Dashboard';
+import { DataIngestion } from './components/DataIngestion';
+import { EventEngine } from './components/EventEngine';
+import { SemanticMatcher } from './components/SemanticMatcher';
+import { ProductsView } from './components/ProductsView';
+import { Analytics } from './components/Analytics';
+import { AIAssistant } from './components/AIAssistant';
+import { ParticleBackground } from './components/ParticleBackground';
+import { MlServices } from './components/MlServices';
+import type { EventItem, MatchedProduct, WorkflowState } from './types';
 
-type ActiveTab = "upload" | "farmers" | "clients" | "recommendations";
+export default function App() {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [selectedEventIds, setSelectedEventIds] = useState<number[]>([]);
+  const [selectedEventsById, setSelectedEventsById] = useState<Record<number, EventItem>>({});
+  const [eventResults, setEventResults] = useState<Record<number, MatchedProduct[]>>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedMatch, setSelectedMatch] = useState<WorkflowState['selectedMatch']>(null);
+  const [campaignResult, setCampaignResult] = useState<WorkflowState['campaignResult']>(null);
 
-function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>("upload");
-  const [healthStatus, setHealthStatus] = useState<boolean | null>(null);
+  const matchedProducts = useMemo(() => {
+    const seen = new Set<number>();
+    return Object.values(eventResults).flat().filter((p) => {
+      if (seen.has(p.product_id)) return false;
+      seen.add(p.product_id);
+      return true;
+    });
+  }, [eventResults]);
 
-  useEffect(() => {
-    axios
-      .get("/health")
-      .then(() => setHealthStatus(true))
-      .catch(() => setHealthStatus(false));
+  const workflow: WorkflowState = {
+    selectedEventIds,
+    selectedEventsById,
+    matchedProducts,
+    selectedMatch,
+    campaignResult,
+    isLoading,
+  };
+
+  const runAnalysis = useCallback(async (event: EventItem) => {
+    setIsLoading(true);
+    try {
+      const embedRes = await fetch('/ml/embed/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_name: event.holiday_info, event_description: event.about }),
+      });
+      const embedData = await embedRes.json();
+      const embedding = embedData.embedding;
+      if (!embedding || !Array.isArray(embedding)) throw new Error('Invalid embedding');
+      const searchRes = await fetch('/vector/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vector: embedding, limit: 10 }),
+      });
+      const searchData = await searchRes.json();
+      return (searchData.products ?? []) as MatchedProduct[];
+    } catch (err) {
+      console.error('ML workflow error for event', event.id, err);
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  const tabs: { id: ActiveTab; label: string; icon: string }[] = [
-    { id: "upload", label: "Загрузка данных", icon: "📤" },
-    { id: "farmers", label: "Фермеры", icon: "🌾" },
-    { id: "clients", label: "Клиенты и бонусы", icon: "👥" },
-    { id: "recommendations", label: "Рекомендации", icon: "🤖" },
-  ];
+  const handleToggleEvent = useCallback(async (event: EventItem) => {
+    if (selectedEventIds.includes(event.id)) {
+      setSelectedEventIds((prev) => prev.filter((id) => id !== event.id));
+      setEventResults((prev) => { const n = { ...prev }; delete n[event.id]; return n; });
+      setSelectedEventsById((prev) => { const n = { ...prev }; delete n[event.id]; return n; });
+      setSelectedMatch(null);
+      setCampaignResult(null);
+    } else {
+      setSelectedEventIds((prev) => [...prev, event.id]);
+      setSelectedEventsById((prev) => ({ ...prev, [event.id]: event }));
+      setSelectedMatch(null);
+      setCampaignResult(null);
+      const products = await runAnalysis(event);
+      setEventResults((prev) => ({ ...prev, [event.id]: products }));
+    }
+  }, [selectedEventIds, runAnalysis]);
+
+  const handleSelectProduct = useCallback((product: MatchedProduct) => {
+    const firstId = selectedEventIds[0];
+    if (firstId === undefined || !selectedEventsById[firstId]) return;
+    const event = selectedEventsById[firstId];
+    setSelectedMatch({
+      product,
+      event,
+      match: { id: `product:${product.id}|event:${event.id}`, score: product.id / 100 },
+    });
+  }, [selectedEventIds, selectedEventsById]);
+
+  const handleGenerateCampaign = useCallback(async (productId: number) => {
+    const firstId = selectedEventIds[0];
+    if (firstId === undefined) return;
+    const firstEvent = selectedEventsById[firstId];
+    if (!firstEvent) return;
+    setIsLoading(true);
+    setCampaignResult(null);
+    try {
+      const res = await fetch('/agents/run_dynamic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: productId, date_from: firstEvent.event_date, date_to: firstEvent.event_date, top_k: 1 }),
+      });
+      const data = await res.json();
+      setCampaignResult(data);
+    } catch (err) {
+      console.error('Campaign generation error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [selectedEventIds, selectedEventsById]);
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'dashboard': return <Dashboard workflow={workflow} />;
+      case 'ingestion': return <DataIngestion />;
+      case 'events':
+        return <EventEngine selectedEventIds={selectedEventIds} onToggleEvent={handleToggleEvent} />;
+      case 'matcher':
+        return (
+          <SemanticMatcher
+            selectedEvents={selectedEventIds.map((id) => selectedEventsById[id]).filter((e): e is EventItem => e !== undefined)}
+            matchedProducts={matchedProducts}
+            selectedMatch={selectedMatch}
+            isLoading={isLoading}
+          />
+        );
+      case 'products':
+        return (
+          <ProductsView
+            products={matchedProducts}
+            selectedMatch={selectedMatch}
+            isLoading={isLoading}
+            onSelectProduct={handleSelectProduct}
+          />
+        );
+      case 'analytics':
+        return (
+          <Analytics
+            campaignResult={campaignResult}
+            selectedMatch={selectedMatch}
+            isLoading={isLoading}
+            onGenerateCampaign={handleGenerateCampaign}
+          />
+        );
+      case 'ml': return <MlServices />;
+      default: return <Dashboard workflow={workflow} />;
+    }
+  };
 
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <div className="sidebar-logo">
-          <span className="logo-icon">🚜</span>
-          <h1>MISIS Kolhoz</h1>
-        </div>
-        <nav className="sidebar-nav">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              className={`nav-btn ${activeTab === tab.id ? "active" : ""}`}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              <span className="nav-icon">{tab.icon}</span>
-              <span>{tab.label}</span>
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-footer">
-          <div className={`status-dot ${healthStatus === true ? "online" : healthStatus === false ? "offline" : "unknown"}`} />
-          <span className="status-text">
-            {healthStatus === true ? "API онлайн" : healthStatus === false ? "API оффлайн" : "Проверка..."}
-          </span>
-        </div>
-      </aside>
-
-      <main className="main-content">
-        <header className="page-header">
-          <h2>
-            {tabs.find((t) => t.id === activeTab)?.icon}{" "}
-            {tabs.find((t) => t.id === activeTab)?.label}
-          </h2>
-          <p className="header-subtitle">
-            {activeTab === "upload" && "Загрузка данных из Excel файлов в базу данных"}
-            {activeTab === "farmers" && "Поиск информации о фермере по ID"}
-            {activeTab === "clients" && "Управление клиентами и бонусной системой"}
-            {activeTab === "recommendations" && "Рекомендации товаров для клиентов на основе истории покупок"}
-          </p>
-        </header>
-
-        <div className="content-area">
-          {activeTab === "upload" && <DataUpload />}
-          {activeTab === "farmers" && <FarmerSearch />}
-          {activeTab === "clients" && <Clients />}
-          {activeTab === "recommendations" && <Recommendations />}
-        </div>
-      </main>
+    <div className="size-full flex bg-gray-50 relative min-h-screen">
+      <ParticleBackground />
+      <Sidebar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
+      <div className="flex-1 overflow-auto relative z-10">{renderContent()}</div>
+      <AIAssistant />
     </div>
   );
 }
-
-export default App;
