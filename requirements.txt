@@ -7,3 +7,7 @@ torch
 deep_translator
 transformers
 fastapi
+langgraph
+langchain-openai
+psycopg[binary]
+pgvector
