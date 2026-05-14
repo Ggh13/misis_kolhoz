@@ -1,0 +1,13 @@
+openai
+python-dotenv
+pandas
+openpyxl
+uvicorn
+torch
+deep_translator
+transformers
+fastapi
+langgraph
+langchain-openai
+psycopg[binary]
+pgvector
