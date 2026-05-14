@@ -22,7 +22,6 @@ import (
 	vectorservice "misis_kolhoz/internal/vector/service"
 	"misis_kolhoz/pkg/logger"
 	"misis_kolhoz/pkg/postgres"
-	"misis_kolhoz/pkg/qdrant"
 
 	"go.uber.org/zap"
 )
@@ -39,16 +38,23 @@ func main() {
 	if err != nil {
 		logger.GetLoggerFromCtx(ctx).Fatal(ctx, "Failed load config", zap.Error(err))
 	}
-	logger.GetLoggerFromCtx(ctx).Info(ctx, "Succesfully load config")
+	logger.GetLoggerFromCtx(ctx).Info(ctx, "Successfully load config")
 
 	pgDB, err := postgres.NewPostgres(ctx, &cfg.PostgresCFG)
 	if err != nil {
-		logger.GetLoggerFromCtx(ctx).Fatal(ctx, "Failsed connect to postgres DB", zap.Error(err))
+		logger.GetLoggerFromCtx(ctx).Fatal(ctx, "Failed connect to postgres DB", zap.Error(err))
 	}
 	if err := pgDB.Ping(ctx); err != nil {
 		logger.GetLoggerFromCtx(ctx).Fatal(ctx, "Failed ping pgDB", zap.Error(err))
 	}
-	logger.GetLoggerFromCtx(ctx).Info(ctx, "Succesfully connected to pgDB")
+	logger.GetLoggerFromCtx(ctx).Info(ctx, "Successfully connected to pgDB")
+
+	// Init vector table
+	vectorRepo := vectorrepository.NewVectorRepository(pgDB)
+	if err := vectorRepo.Init(ctx); err != nil {
+		logger.GetLoggerFromCtx(ctx).Fatal(ctx, "Failed init vector table", zap.Error(err))
+	}
+	logger.GetLoggerFromCtx(ctx).Info(ctx, "Vector table initialized")
 
 	farmerRepo := farmerrepository.NewRepository(pgDB)
 	farmerService := farmerservice.NewService(farmerRepo)
@@ -62,18 +68,6 @@ func main() {
 	}
 	recommendationHandler := recommendationhandler.NewHandler(recommendationService)
 
-	qdrantClient, err := qdrant.NewQdrant(ctx, &qdrant.Config{
-		Host:           cfg.QdrantCFG.Host,
-		Port:           cfg.QdrantCFG.Port,
-		CollectionName: cfg.QdrantCFG.CollectionName,
-		VectorSize:     cfg.QdrantCFG.VectorSize,
-	})
-	if err != nil {
-		logger.GetLoggerFromCtx(ctx).Fatal(ctx, "Failed connect to qdrant", zap.Error(err))
-	}
-	logger.GetLoggerFromCtx(ctx).Info(ctx, "Succesfully connected to qdrant")
-
-	vectorRepo := vectorrepository.NewVectorRepository(qdrantClient, cfg.QdrantCFG.CollectionName)
 	vectorService := vectorservice.NewVectorService(vectorRepo)
 	vectorHandler := vectorhandler.NewVectorHandler(vectorService)
 
