@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	loyaltymodel "misis_kolhoz/internal/loyalty/model"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const (

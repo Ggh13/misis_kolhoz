@@ -29,6 +29,12 @@ backend/
 ├── go.mod / go.sum
 ├── internal/
 │   ├── config/                 — загрузка конфигурации
+│   ├── events/                 — модуль ивентов/инфоповодов
+│   │   ├── handler/
+│   │   ├── model/
+│   │   ├── repository/
+│   │   ├── router/
+│   │   └── service/
 │   ├── farmer/                 — модуль фермеров и продукции
 │   │   ├── handler/
 │   │   ├── model/
@@ -55,6 +61,7 @@ backend/
 │   │   └── service/
 │   └── transport/rest/         — REST-роутер (Gin)
 ├── moked_data/
+│   ├── events.xlsx             — календарь ивентов/инфоповодов
 │   ├── farmers_sku.xlsx        — данные фермеров и продукции
 │   └── orders.xlsx             — данные заказов
 └── pkg/
@@ -96,7 +103,7 @@ curl http://localhost:8080/health
 
 #### `POST /upload_data`
 
-Загружает данные из Excel файла `moked_data/farmers_sku.xlsx` в PostgreSQL. Создаёт таблицы `farmers` и `farmer_products` (если не существуют), а также заполняет таблицу `product_embeddings` нулевыми векторами размерности 384.
+Загружает данные из Excel файла `moked_data/farmers_sku.xlsx` в PostgreSQL. Создаёт таблицы `farmers` и `farmer_products` (если не существуют), сохраняет `farmer_description`/`product_description`, а таблица `product_embeddings` заполняется нулевыми векторами размерности 384.
 
 **Request:**
 ```
@@ -111,6 +118,98 @@ POST http://localhost:8080/upload_data
 **cURL:**
 ```bash
 curl -X POST http://localhost:8080/upload_data
+```
+
+---
+
+### Events / Info Occasions
+
+#### `POST /upload_events`
+
+Загружает данные из Excel файла `internal/moked_data/events.xlsx` в таблицу `event_embeddings`.
+
+Схема таблицы `event_embeddings`:
+
+| Колонка      | Тип         | Описание                              |
+|--------------|-------------|---------------------------------------|
+| id           | SERIAL      | Первичный ключ                        |
+| event_date   | TEXT        | Дата/дата-диапазон события (нормализуется при загрузке) |
+| holiday_info | TEXT        | Праздник / инфоповод                  |
+| category     | TEXT        | Категория                             |
+| about        | TEXT        | О чём событие                         |
+| food_customs | TEXT        | Еда / обычаи                          |
+| embedding    | vector(384) | Векторное представление события       |
+
+Колонки, ожидаемые в XLSX:
+- `Дата`
+- `Праздник / инфоповод`
+- `Категория`
+- `О чём он`
+- `Еда / обычаи`
+
+Для каждой строки создаётся запись с вектором `embedding vector(384)` (по умолчанию нулевой вектор).
+
+**Request:**
+```
+POST http://localhost:8080/upload_events
+```
+
+**Response:** `200 OK`
+```json
+"Successfully loaded events data from excel"
+```
+
+**cURL:**
+```bash
+curl -X POST http://localhost:8080/upload_events
+```
+
+---
+
+#### `GET /events`
+
+Возвращает все ивенты, отсортированные по дате по возрастанию.
+
+**Request:**
+```
+GET http://localhost:8080/events
+```
+
+---
+
+#### `GET /events/month/:year/:month`
+
+Возвращает ивенты за конкретный месяц.
+
+**Request:**
+```
+GET http://localhost:8080/events/month/2026/12
+```
+
+---
+
+#### `GET /events/upcoming?days=30&limit=100`
+
+Возвращает предстоящие ивенты в окне от сегодняшней даты до `today + days`.
+
+Параметры:
+- `days` (опционально, по умолчанию `30`)
+- `limit` (опционально, по умолчанию `100`)
+
+**Request:**
+```
+GET http://localhost:8080/events/upcoming?days=45&limit=50
+```
+
+---
+
+#### `GET /events/category/:category`
+
+Возвращает ивенты по категории (поиск без учёта регистра).
+
+**Request:**
+```
+GET http://localhost:8080/events/category/фрукты
 ```
 
 ---
@@ -186,6 +285,8 @@ curl http://localhost:8080/farmer_data/1001
 | unit          | VARCHAR(50)      | Единица измерения                  |
 | price         | DECIMAL(10,2)    | Цена                               |
 | quantity      | INTEGER          | Количество                         |
+| farmer_description | TEXT       | Описание фермера из farmers_sku    |
+| product_description | TEXT      | Описание продукта из farmers_sku   |
 | embedding     | vector(384)      | Вектор эмбеддинга (384 измерения)  |
 
 Поиск работает через косинусное расстояние с использованием **IVFFlat-индекса**.
@@ -203,6 +304,7 @@ Content-Type: application/json
 ```
 ```json
 {
+  "product_id": 42,
   "embedding": [0.1, 0.2, 0.3, ..., 0.05]
 }
 ```
@@ -226,7 +328,7 @@ Content-Type: application/json
 ```bash
 curl -X POST http://localhost:8080/vector/42 \
   -H "Content-Type: application/json" \
-  -d '{"embedding": [0.1, 0.2, 0.3, ...]}'
+  -d '{"product_id": 42, "embedding": [0.1, 0.2, 0.3, ...]}'
 ```
 
 ---

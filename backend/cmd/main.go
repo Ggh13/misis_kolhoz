@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"misis_kolhoz/internal/config"
+	eventhandler "misis_kolhoz/internal/events/handler"
+	eventrepository "misis_kolhoz/internal/events/repository"
+	eventservice "misis_kolhoz/internal/events/service"
 	farmerhandler "misis_kolhoz/internal/farmer/handler"
 	farmerrepository "misis_kolhoz/internal/farmer/repository"
 	farmerservice "misis_kolhoz/internal/farmer/service"
@@ -49,14 +52,25 @@ func main() {
 	}
 	logger.GetLoggerFromCtx(ctx).Info(ctx, "Successfully connected to pgDB")
 
-	// Init vector table
+	farmerRepo := farmerrepository.NewRepository(pgDB)
+	if err := farmerRepo.InitTables(ctx); err != nil {
+		logger.GetLoggerFromCtx(ctx).Fatal(ctx, "Failed init farmer tables", zap.Error(err))
+	}
+	logger.GetLoggerFromCtx(ctx).Info(ctx, "Farmer tables initialized")
+
+	// Init vector table after farmer tables, because of FK to farmer_products(id)
 	vectorRepo := vectorrepository.NewVectorRepository(pgDB)
 	if err := vectorRepo.Init(ctx); err != nil {
 		logger.GetLoggerFromCtx(ctx).Fatal(ctx, "Failed init vector table", zap.Error(err))
 	}
 	logger.GetLoggerFromCtx(ctx).Info(ctx, "Vector table initialized")
 
-	farmerRepo := farmerrepository.NewRepository(pgDB)
+	eventRepo := eventrepository.NewRepository(pgDB)
+	if err := eventRepo.InitTables(ctx); err != nil {
+		logger.GetLoggerFromCtx(ctx).Fatal(ctx, "Failed init events table", zap.Error(err))
+	}
+	logger.GetLoggerFromCtx(ctx).Info(ctx, "Events table initialized")
+
 	farmerService := farmerservice.NewService(farmerRepo)
 	farmerHandler := farmerhandler.NewHandler(farmerService)
 
@@ -71,11 +85,14 @@ func main() {
 	vectorService := vectorservice.NewVectorService(vectorRepo)
 	vectorHandler := vectorhandler.NewVectorHandler(vectorService)
 
+	eventService := eventservice.NewService(eventRepo)
+	eventHandler := eventhandler.NewHandler(eventService)
+
 	loyaltyRepo := loyaltyrepository.NewRepository(pgDB)
 	loyaltyService := loyaltyservice.NewService(loyaltyRepo)
 	loyaltyHandler := loyaltyhandler.NewHandler(loyaltyService)
 
-	r, err := rest.NewRouter(ctx, cfg, farmerHandler, vectorHandler, loyaltyHandler, recommendationHandler)
+	r, err := rest.NewRouter(ctx, cfg, farmerHandler, vectorHandler, eventHandler, loyaltyHandler, recommendationHandler)
 	if err != nil {
 		logger.GetLoggerFromCtx(ctx).Info(ctx, "Failed create router")
 	}
