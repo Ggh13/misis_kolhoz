@@ -4,8 +4,9 @@ import "./App.css";
 import DataUpload from "./components/DataUpload";
 import FarmerSearch from "./components/FarmerSearch";
 import Clients from "./components/Clients";
+import Recommendations from "./components/Recommendations";
 
-type ActiveTab = "upload" | "farmers" | "clients";
+type ActiveTab = "upload" | "farmers" | "clients" | "recommendations";
 
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("upload");
@@ -22,6 +23,7 @@ function App() {
     { id: "upload", label: "Загрузка данных", icon: "📤" },
     { id: "farmers", label: "Фермеры", icon: "🌾" },
     { id: "clients", label: "Клиенты и бонусы", icon: "👥" },
+    { id: "recommendations", label: "Рекомендации", icon: "🤖" },
   ];
 
   return (
@@ -61,6 +63,7 @@ function App() {
             {activeTab === "upload" && "Загрузка данных из Excel файлов в базу данных"}
             {activeTab === "farmers" && "Поиск информации о фермере по ID"}
             {activeTab === "clients" && "Управление клиентами и бонусной системой"}
+            {activeTab === "recommendations" && "Рекомендации товаров для клиентов на основе истории покупок"}
           </p>
         </header>
 
@@ -68,6 +71,7 @@ function App() {
           {activeTab === "upload" && <DataUpload />}
           {activeTab === "farmers" && <FarmerSearch />}
           {activeTab === "clients" && <Clients />}
+          {activeTab === "recommendations" && <Recommendations />}
         </div>
       </main>
     </div>

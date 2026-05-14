@@ -30,6 +30,10 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/recommendations': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
       '/vector': {
         target: 'http://localhost:8080',
         changeOrigin: true,
