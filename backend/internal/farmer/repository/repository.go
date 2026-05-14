@@ -15,7 +15,8 @@ const (
 		region VARCHAR(255),
 		address TEXT,
 		phone VARCHAR(50),
-		email VARCHAR(255)
+		email VARCHAR(255),
+		farmer_description TEXT
 	)`
 
 	CreateFarmerProductsTable = `CREATE TABLE IF NOT EXISTS public.farmer_products (
@@ -25,22 +26,42 @@ const (
 		category VARCHAR(100),
 		unit VARCHAR(50),
 		price DECIMAL(10,2),
-		quantity INTEGER
+		quantity INTEGER,
+		product_description TEXT
 	)`
 
-	InsertFarmer = `INSERT INTO public.farmers (id, name, region, address, phone, email) 
-		VALUES($1, $2, $3, $4, $5, $6) 
-		ON CONFLICT (id) DO NOTHING`
-
-	InsertFarmerProduct = `INSERT INTO public.farmer_products 
-		(id, farmer_id, product_name, category, unit, price, quantity) 
+	InsertFarmer = `INSERT INTO public.farmers (id, name, region, address, phone, email, farmer_description)
 		VALUES($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT (id) DO NOTHING`
+		ON CONFLICT (id) DO UPDATE SET
+			name = EXCLUDED.name,
+			region = EXCLUDED.region,
+			address = EXCLUDED.address,
+			phone = EXCLUDED.phone,
+			email = EXCLUDED.email,
+			farmer_description = EXCLUDED.farmer_description`
 
-	SelectFarmerByID = `SELECT id, name, region, address, phone, email FROM farmers WHERE id = $1`
+	InsertFarmerProduct = `INSERT INTO public.farmer_products
+		(id, farmer_id, product_name, category, unit, price, quantity, product_description)
+		VALUES($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT (id) DO UPDATE SET
+			farmer_id = EXCLUDED.farmer_id,
+			product_name = EXCLUDED.product_name,
+			category = EXCLUDED.category,
+			unit = EXCLUDED.unit,
+			price = EXCLUDED.price,
+			quantity = EXCLUDED.quantity,
+			product_description = EXCLUDED.product_description`
 
-	SelectFarmerProductsByFarmerID = `SELECT id, farmer_id, product_name, category, unit, price, quantity 
+	SelectFarmerByID = `SELECT id, name, region, address, phone, email, farmer_description FROM farmers WHERE id = $1`
+
+	SelectFarmerProductsByFarmerID = `SELECT id, farmer_id, product_name, category, unit, price, quantity, product_description
 		FROM farmer_products WHERE farmer_id = $1`
+
+	AlterFarmersAddDescription = `ALTER TABLE public.farmers
+		ADD COLUMN IF NOT EXISTS farmer_description TEXT`
+
+	AlterFarmerProductsAddDescription = `ALTER TABLE public.farmer_products
+		ADD COLUMN IF NOT EXISTS product_description TEXT`
 )
 
 type Repository struct {
@@ -62,6 +83,16 @@ func (r *Repository) InitTables(ctx context.Context) error {
 		return fmt.Errorf("farmerrepository.CreateFarmerProductsTable: %w", err)
 	}
 
+	_, err = r.pgDB.Exec(ctx, AlterFarmersAddDescription)
+	if err != nil {
+		return fmt.Errorf("farmerrepository.AlterFarmersAddDescription: %w", err)
+	}
+
+	_, err = r.pgDB.Exec(ctx, AlterFarmerProductsAddDescription)
+	if err != nil {
+		return fmt.Errorf("farmerrepository.AlterFarmerProductsAddDescription: %w", err)
+	}
+
 	return nil
 }
 
@@ -73,6 +104,7 @@ func (r *Repository) AddFarmer(ctx context.Context, farmer farmermodel.Farmer) e
 		farmer.Address,
 		farmer.Phone,
 		farmer.Email,
+		farmer.FarmerDescription,
 	)
 	if err != nil {
 		return fmt.Errorf("farmerrepository.AddFarmer: %w", err)
@@ -89,6 +121,7 @@ func (r *Repository) AddFarmerProduct(ctx context.Context, product farmermodel.F
 		product.Unit,
 		product.Price,
 		product.Quantity,
+		product.ProductDescription,
 	)
 	if err != nil {
 		return fmt.Errorf("farmerrepository.AddFarmerProduct: %w", err)
@@ -105,6 +138,7 @@ func (r *Repository) GetFarmerByID(ctx context.Context, id int) (farmermodel.Far
 		&farmer.Address,
 		&farmer.Phone,
 		&farmer.Email,
+		&farmer.FarmerDescription,
 	)
 	if err != nil {
 		return farmer, fmt.Errorf("farmerrepository.GetFarmerByID: %w", err)
@@ -130,6 +164,7 @@ func (r *Repository) GetFarmerProducts(ctx context.Context, farmerID int) ([]far
 			&p.Unit,
 			&p.Price,
 			&p.Quantity,
+			&p.ProductDescription,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("farmerrepository.GetFarmerProducts scan: %w", err)

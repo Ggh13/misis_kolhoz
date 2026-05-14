@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"misis_kolhoz/internal/config"
+	eventhandler "misis_kolhoz/internal/events/handler"
+	eventrouter "misis_kolhoz/internal/events/router"
 	farmerhandler "misis_kolhoz/internal/farmer/handler"
 	farmerrouter "misis_kolhoz/internal/farmer/router"
 	loyaltyhandler "misis_kolhoz/internal/loyalty/handler"
@@ -24,7 +26,7 @@ type Router struct {
 	httpServer *http.Server
 }
 
-func NewRouter(ctx context.Context, cfg *config.Config, farmerH *farmerhandler.Handler, vectorH *vectorhandler.VectorHandler, loyaltyH *loyaltyhandler.Handler, recommendationH *recommendationhandler.Handler) (*Router, error) {
+func NewRouter(ctx context.Context, cfg *config.Config, farmerH *farmerhandler.Handler, vectorH *vectorhandler.VectorHandler, eventH *eventhandler.Handler, loyaltyH *loyaltyhandler.Handler, recommendationH *recommendationhandler.Handler) (*Router, error) {
 	router := gin.Default()
 
 	router.GET("/health", func(c *gin.Context) {
@@ -33,6 +35,7 @@ func NewRouter(ctx context.Context, cfg *config.Config, farmerH *farmerhandler.H
 
 	farmerrouter.Transport(router, farmerH, ctx)
 	vectorrouter.NewRouter(router, vectorH)
+	eventrouter.Transport(router, eventH, ctx)
 	loyaltyrouter.Transport(router, loyaltyH, ctx)
 	recommendationrouter.Transport(router, recommendationH, ctx)
 
