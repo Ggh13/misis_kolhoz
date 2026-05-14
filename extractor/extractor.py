@@ -54,22 +54,7 @@ class FeatureExtractor:
         return self._extract_json(text=text, system_prompt=FARM_SYSTEM_PROMPT)
 
     def get_combined_text(self, product_features: Dict[str, Any], farm_features: Dict[str, Any]) -> str:
-
-        prod_type = product_features.get("product_type", "товар")
-        methods = ", ".join(product_features.get("production_method", []))
-        vibes = ", ".join(product_features.get("usage_vibes", []))
-        
-        loc = ", ".join(farm_features.get("location", []))
-        assets = ", ".join(farm_features.get("assets", []))
-        values = ", ".join(farm_features.get("farm_values", []))
-        
-        combined = (
-            f"Продукт: {prod_type}. Особенности производства: {methods}. "
-            f"Применение и эффект: {vibes}. "
-            f"Локация фермы: {loc}. Дополнительно на ферме: {assets}. "
-            f"Ценности: {values}."
-        )
-        return combined
+        return get_combined_text(product_features, farm_features)
 
     def _extract_json(self, text: str, system_prompt: str) -> Dict[str, Any]:
         try:
@@ -152,6 +137,45 @@ def extract_for_product_id(
         "product_features": product_features,
     }
 
+
+def get_combined_text(
+    product_features: Dict[str, Any], farm_features: Dict[str, Any]
+) -> str:
+    def _stringify(value: Any) -> str:
+        if not value:
+            return ""
+        if isinstance(value, list):
+            items = [str(item).strip() for item in value if str(item).strip()]
+            return "; ".join(items)
+        return str(value).strip()
+
+    farmer_block = "; ".join(
+        filter(
+            None,
+            [
+                _stringify(farm_features.get("location")),
+                _stringify(farm_features.get("assets")),
+                _stringify(farm_features.get("farm_values")),
+                _stringify(farm_features.get("services")),
+                _stringify(farm_features.get("brand_story")),
+            ],
+        )
+    )
+
+    product_block = "; ".join(
+        filter(
+            None,
+            [
+                _stringify(product_features.get("product_type")),
+                _stringify(product_features.get("geo")),
+                _stringify(product_features.get("production_method")),
+                _stringify(product_features.get("usage_vibes")),
+            ],
+        )
+    )
+
+    return f"FARMER: {farmer_block}\nPRODUCT: {product_block}".strip()
+
 def build_default_extractor() -> FeatureExtractor:
     load_dotenv()
     api_key = os.getenv("GROQ_API_KEY")
@@ -164,4 +188,5 @@ __all__ = [
     "build_default_extractor",
     "extract_from_table_xlsx",
     "extract_for_product_id",
+    "get_combined_text",
 ]

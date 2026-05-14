@@ -2,3 +2,8 @@ openai
 python-dotenv
 pandas
 openpyxl
+uvicorn
+torch
+deep_translator
+transformers
+fastapi
