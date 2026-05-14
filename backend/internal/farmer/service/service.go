@@ -72,6 +72,7 @@ func (s *Service) processSheet(ctx context.Context, f *excelize.File, sheetName 
 	categoryIdx := headerMap["category"]
 	priceIdx := headerMap["price"]
 	productIDIdx := headerMap["product_id"]
+	productDescIdx := headerMap["product_description"]
 
 	currentFarmerID := 0
 
@@ -99,6 +100,7 @@ func (s *Service) processSheet(ctx context.Context, f *excelize.File, sheetName 
 				farmer.Region = row[regionIdx]
 			}
 			if farmerDescIdx < len(row) {
+				farmer.FarmerDescription = row[farmerDescIdx]
 				farmer.Address = row[farmerDescIdx]
 			}
 
@@ -126,6 +128,9 @@ func (s *Service) processSheet(ctx context.Context, f *excelize.File, sheetName 
 
 				if categoryIdx < len(row) {
 					product.Category = row[categoryIdx]
+				}
+				if productDescIdx < len(row) {
+					product.ProductDescription = row[productDescIdx]
 				}
 				if priceIdx < len(row) && row[priceIdx] != "" {
 					fmt.Sscanf(row[priceIdx], "%f", &product.Price)

@@ -10,6 +10,14 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/upload_events': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/events': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
       '/farmer_data': {
         target: 'http://localhost:8080',
         changeOrigin: true,

@@ -1,2 +1,4 @@
 .idea
 /.sisyphus/
+/frontend/node_modules
+/frontend/dist

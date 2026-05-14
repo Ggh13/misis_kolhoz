@@ -26,16 +26,22 @@ const (
 		unit VARCHAR(50),
 		price DECIMAL(10,2),
 		quantity INTEGER,
+		farmer_description TEXT,
+		product_description TEXT,
 		embedding vector(384)
 	)`
 
 	CreateEmbeddingIndex = `CREATE INDEX IF NOT EXISTS idx_product_embeddings_embedding
 		ON product_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100)`
 
-	SelectAllProductsForEmbedding = `SELECT id, farmer_id, product_name, category, unit, price, quantity FROM farmer_products`
+	SelectAllProductsForEmbedding = `SELECT fp.id, fp.farmer_id, fp.product_name, fp.category, fp.unit, fp.price, fp.quantity,
+		COALESCE(f.farmer_description, ''), COALESCE(fp.product_description, '')
+		FROM farmer_products fp
+		LEFT JOIN farmers f ON f.id = fp.farmer_id`
 
-	InsertProductEmbedding = `INSERT INTO product_embeddings (product_id, farmer_id, product_name, category, unit, price, quantity, embedding)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8::vector)
+	InsertProductEmbedding = `INSERT INTO product_embeddings
+		(product_id, farmer_id, product_name, category, unit, price, quantity, farmer_description, product_description, embedding)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::vector)
 		ON CONFLICT (product_id) DO UPDATE SET
 			farmer_id = EXCLUDED.farmer_id,
 			product_name = EXCLUDED.product_name,
@@ -43,15 +49,25 @@ const (
 			unit = EXCLUDED.unit,
 			price = EXCLUDED.price,
 			quantity = EXCLUDED.quantity,
+			farmer_description = EXCLUDED.farmer_description,
+			product_description = EXCLUDED.product_description,
 			embedding = EXCLUDED.embedding`
 
-	GetVectorByProductID = `SELECT id, product_id, farmer_id, product_name, category, unit, price, quantity, embedding::text
+	GetVectorByProductID = `SELECT id, product_id, farmer_id, product_name, category, unit, price, quantity,
+		farmer_description, product_description, embedding::text
 		FROM product_embeddings WHERE product_id = $1`
 
 	DeleteVectorByProductID = `DELETE FROM product_embeddings WHERE product_id = $1`
 
-	SearchVectors = `SELECT id, product_id, farmer_id, product_name, category, unit, price, quantity
+	SearchVectors = `SELECT id, product_id, farmer_id, product_name, category, unit, price, quantity,
+		farmer_description, product_description
 		FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT $2`
+
+	AlterProductEmbeddingsAddFarmerDescription = `ALTER TABLE public.product_embeddings
+		ADD COLUMN IF NOT EXISTS farmer_description TEXT`
+
+	AlterProductEmbeddingsAddProductDescription = `ALTER TABLE public.product_embeddings
+		ADD COLUMN IF NOT EXISTS product_description TEXT`
 )
 
 func NewVectorRepository(pgDB *pgxpool.Pool) *VectorRepository {
@@ -66,6 +82,14 @@ func (r *VectorRepository) Init(ctx context.Context) error {
 	_, err = r.pgDB.Exec(ctx, CreateProductEmbeddingsTable)
 	if err != nil {
 		return fmt.Errorf("vector create table: %w", err)
+	}
+	_, err = r.pgDB.Exec(ctx, AlterProductEmbeddingsAddFarmerDescription)
+	if err != nil {
+		return fmt.Errorf("vector alter table add farmer_description: %w", err)
+	}
+	_, err = r.pgDB.Exec(ctx, AlterProductEmbeddingsAddProductDescription)
+	if err != nil {
+		return fmt.Errorf("vector alter table add product_description: %w", err)
 	}
 	_, err = r.pgDB.Exec(ctx, CreateEmbeddingIndex)
 	if err != nil {
@@ -84,10 +108,10 @@ func (r *VectorRepository) BulkInsertFromProducts(ctx context.Context) error {
 	count := 0
 	for rows.Next() {
 		var productID, farmerID int
-		var productName, category, unit string
+		var productName, category, unit, farmerDescription, productDescription string
 		var price float64
 		var quantity int
-		if err := rows.Scan(&productID, &farmerID, &productName, &category, &unit, &price, &quantity); err != nil {
+		if err := rows.Scan(&productID, &farmerID, &productName, &category, &unit, &price, &quantity, &farmerDescription, &productDescription); err != nil {
 			return fmt.Errorf("vector scan product: %w", err)
 		}
 
@@ -95,7 +119,7 @@ func (r *VectorRepository) BulkInsertFromProducts(ctx context.Context) error {
 		vecStr := formatVectorForSQL(zeroVec)
 
 		_, err := r.pgDB.Exec(ctx, InsertProductEmbedding,
-			productID, farmerID, productName, category, unit, price, quantity, vecStr)
+			productID, farmerID, productName, category, unit, price, quantity, farmerDescription, productDescription, vecStr)
 		if err != nil {
 			return fmt.Errorf("vector insert embedding for product %d: %w", productID, err)
 		}
@@ -118,20 +142,23 @@ func (r *VectorRepository) Upsert(ctx context.Context, productID int, embedding 
 	}
 
 	var farmerID int
-	var productName, category, unit string
+	var productName, category, unit, farmerDescription, productDescription string
 	var price float64
 	var quantity int
 	err := r.pgDB.QueryRow(ctx, `
-		SELECT farmer_id, product_name, category, unit, price, quantity
-		FROM farmer_products WHERE id = $1`, productID).
-		Scan(&farmerID, &productName, &category, &unit, &price, &quantity)
+		SELECT fp.farmer_id, fp.product_name, fp.category, fp.unit, fp.price, fp.quantity,
+			COALESCE(f.farmer_description, ''), COALESCE(fp.product_description, '')
+		FROM farmer_products fp
+		LEFT JOIN farmers f ON f.id = fp.farmer_id
+		WHERE fp.id = $1`, productID).
+		Scan(&farmerID, &productName, &category, &unit, &price, &quantity, &farmerDescription, &productDescription)
 	if err != nil {
 		return fmt.Errorf("vector get product: %w", err)
 	}
 
 	vecStr := formatVectorForSQL(embedding)
 	_, err = r.pgDB.Exec(ctx, InsertProductEmbedding,
-		productID, farmerID, productName, category, unit, price, quantity, vecStr)
+		productID, farmerID, productName, category, unit, price, quantity, farmerDescription, productDescription, vecStr)
 	if err != nil {
 		return fmt.Errorf("vector upsert: %w", err)
 	}
@@ -144,7 +171,7 @@ func (r *VectorRepository) Get(ctx context.Context, productID int) (*model.Produ
 	var e model.ProductEmbedding
 	var embeddingStr string
 	err := row.Scan(&e.ID, &e.ProductID, &e.FarmerID, &e.ProductName, &e.Category,
-		&e.Unit, &e.Price, &e.Quantity, &embeddingStr)
+		&e.Unit, &e.Price, &e.Quantity, &e.FarmerDescription, &e.ProductDescription, &embeddingStr)
 	if err != nil {
 		return nil, fmt.Errorf("vector get: %w", err)
 	}
@@ -181,7 +208,7 @@ func (r *VectorRepository) Search(ctx context.Context, embedding []float32, limi
 	for rows.Next() {
 		var e model.ProductEmbedding
 		if err := rows.Scan(&e.ID, &e.ProductID, &e.FarmerID, &e.ProductName, &e.Category,
-			&e.Unit, &e.Price, &e.Quantity); err != nil {
+			&e.Unit, &e.Price, &e.Quantity, &e.FarmerDescription, &e.ProductDescription); err != nil {
 			return nil, fmt.Errorf("vector search scan: %w", err)
 		}
 		results = append(results, e)
@@ -195,11 +222,11 @@ func formatVectorForSQL(emb []float32) string {
 	for i, v := range emb {
 		parts[i] = strconv.FormatFloat(float64(v), 'f', -1, 32)
 	}
-	return "{" + strings.Join(parts, ",") + "}"
+	return "[" + strings.Join(parts, ",") + "]"
 }
 
 func parseVectorString(s string) []float32 {
-	s = strings.Trim(s, "{}")
+	s = strings.Trim(s, "{}[]")
 	if s == "" {
 		return nil
 	}

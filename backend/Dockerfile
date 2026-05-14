@@ -16,6 +16,7 @@ COPY --from=builder /app/server .
 COPY --from=builder /app/config.yaml ./config.yaml
 COPY --from=builder /app/internal/moked_data/farmers_sku.xlsx ./internal/moked_data/farmers_sku.xlsx
 COPY --from=builder /app/internal/moked_data/orders.xlsx ./internal/moked_data/orders.xlsx
+COPY --from=builder /app/internal/moked_data/events.xlsx ./internal/moked_data/events.xlsx
 
 EXPOSE 8080
 CMD ["./server"]
