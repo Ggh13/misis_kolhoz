@@ -9,17 +9,19 @@ import {
   User,
   ChevronLeft,
   ChevronRight,
-  Brain,
+  CheckCircle,
 } from 'lucide-react';
+import type { FarmerInfo } from '../types';
 
 interface SidebarProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  selectedFarmer: FarmerInfo | null;
 }
 
-export function Sidebar({ activeTab, onTabChange, collapsed, onToggleCollapse }: SidebarProps) {
+export function Sidebar({ activeTab, onTabChange, collapsed, onToggleCollapse, selectedFarmer }: SidebarProps) {
   const menuItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Дашборд' },
     { id: 'ingestion', icon: Database, label: 'Загрузка данных' },
@@ -27,7 +29,6 @@ export function Sidebar({ activeTab, onTabChange, collapsed, onToggleCollapse }:
     { id: 'matcher', icon: Sparkles, label: 'Сопоставление' },
     { id: 'products', icon: Package, label: 'Товары' },
     { id: 'analytics', icon: TrendingUp, label: 'Аналитика' },
-    { id: 'ml', icon: Brain, label: 'ML сервисы (mock)' },
   ];
 
   return (
@@ -75,13 +76,22 @@ export function Sidebar({ activeTab, onTabChange, collapsed, onToggleCollapse }:
 
       <div className="p-4 border-t border-gray-200">
         <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-2.5'}`}>
-          <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
-            <User className="w-4 h-4 text-gray-600" />
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${selectedFarmer ? 'bg-green-100' : 'bg-gray-200'}`}>
+            {selectedFarmer ? <CheckCircle className="w-4 h-4 text-green-600" /> : <User className="w-4 h-4 text-gray-600" />}
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">Усадьба Родушко</p>
-              <p className="text-xs text-gray-500 truncate">Фермерское хозяйство</p>
+              {selectedFarmer ? (
+                <>
+                  <p className="text-sm font-medium text-gray-900 truncate">{selectedFarmer.name || `Фермер #${selectedFarmer.id}`}</p>
+                  <p className="text-xs text-green-600 truncate">Выбран</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-gray-900 truncate">Не выбран</p>
+                  <p className="text-xs text-gray-500 truncate">Выберите в загрузке</p>
+                </>
+              )}
             </div>
           )}
         </div>

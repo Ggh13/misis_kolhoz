@@ -246,15 +246,6 @@ export function Analytics({
             </div>
           )}
 
-          {/* Event-food connection */}
-          {campaignResult.event && campaignResult.event.food_customs && (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-              <p className="text-sm">
-                <span className="font-medium text-green-800">🍽 Кулинарная привязка к событию:</span>{' '}
-                {campaignResult.event.food_customs}
-              </p>
-            </div>
-          )}
         </motion.div>
       )}
 

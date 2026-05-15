@@ -54,14 +54,14 @@ services:
       context: .
       dockerfile: Dockerfile.ml
       args:
-      - HF_TOKEN=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
+      - HF_TOKEN=${HF_TOKEN}
     container_name: misis_kolhoz-ml
     restart: unless-stopped
     ports:
       - "8000:8000"
     environment:
-      - HF_TOKEN=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
-      - GROQ_API_KEY=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
+      - HF_TOKEN=${HF_TOKEN}
+      - GROQ_API_KEY=${GROQ_API_KEY}
     networks:
       - app-network
 
@@ -75,8 +75,8 @@ services:
       - "8010:8010"
     environment:
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/mydb
-      - GROQ_API_KEY=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
-      - HF_TOKEN=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
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - HF_TOKEN=${HF_TOKEN}
     networks:
       - app-network
     depends_on:

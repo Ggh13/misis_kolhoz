@@ -1,7 +1,7 @@
-import { Calendar, TrendingUp, Bell, CheckCircle, PlusCircle } from 'lucide-react';
+import { Calendar, TrendingUp, Bell, CheckCircle, PlusCircle, X, Search, Sparkles, Package } from 'lucide-react';
 import axios from 'axios';
 import { useEffect, useMemo, useState } from 'react';
-import type { EventItem } from '../types';
+import type { EventItem, EventSearchMatch } from '../types';
 
 function formatRuDate(value: string) {
   const parsed = new Date(value);
@@ -26,9 +26,22 @@ function getEventMonthKey(e: EventItem) {
 interface EventEngineProps {
   selectedEventIds: number[];
   onToggleEvent: (event: EventItem) => void;
+  recommendedEvents: EventSearchMatch[];
+  onFindEvents: () => void;
+  eventsLoading: boolean;
+  eventsError: string;
+  farmerName: string | null;
 }
 
-export function EventEngine({ selectedEventIds, onToggleEvent }: EventEngineProps) {
+export function EventEngine({
+  selectedEventIds,
+  onToggleEvent,
+  recommendedEvents,
+  onFindEvents,
+  eventsLoading,
+  eventsError,
+  farmerName,
+}: EventEngineProps) {
   const [allEvents, setAllEvents] = useState<EventItem[]>([]);
   const [upcoming, setUpcoming] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,7 +56,6 @@ export function EventEngine({ selectedEventIds, onToggleEvent }: EventEngineProp
           axios.get<{ events: EventItem[] }>('/events'),
           axios.get<{ events: EventItem[] }>('/events/upcoming?days=90'),
         ]);
-        // Only future events in the main list
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         setAllEvents((allRes.data.events ?? []).filter((e) => new Date(e.event_date) >= today));
@@ -57,6 +69,11 @@ export function EventEngine({ selectedEventIds, onToggleEvent }: EventEngineProp
     };
     void load();
   }, []);
+
+  const recommendedEventIds = useMemo(
+    () => new Set(recommendedEvents.map((e) => e.id)),
+    [recommendedEvents],
+  );
 
   const categoryCount = useMemo(
     () => new Set(allEvents.map((item) => item.category)).size,
@@ -75,7 +92,7 @@ export function EventEngine({ selectedEventIds, onToggleEvent }: EventEngineProp
 
   const isSelected = (id: number) => selectedEventIds.includes(id);
 
-  const renderCard = (e: EventItem) => {
+  const renderCard = (e: EventItem, highlight?: boolean) => {
     const selected = isSelected(e.id);
     return (
       <div
@@ -84,16 +101,19 @@ export function EventEngine({ selectedEventIds, onToggleEvent }: EventEngineProp
         className={`border rounded-lg cursor-pointer transition-all hover:shadow-sm ${
           selected
             ? 'border-green-500 bg-green-50 shadow-sm ring-1 ring-green-300'
+            : highlight
+            ? 'border-purple-300 bg-purple-50/40 hover:border-purple-400'
             : 'border-gray-200 hover:border-green-300'
         }`}
       >
         <div className="p-2.5">
           <div className="flex justify-between gap-1 items-start">
-            <p className={`font-medium text-xs flex-1 ${selected ? 'text-green-800' : 'text-gray-800'}`}>
+            <p className={`font-medium text-xs flex-1 ${selected ? 'text-green-800' : highlight ? 'text-purple-800' : 'text-gray-800'}`}>
               {e.holiday_info}
             </p>
             <div className="flex items-center gap-1 shrink-0">
               <span className="text-[10px] font-semibold text-green-600">{e.category}</span>
+              {highlight && !selected && <Sparkles className="w-3 h-3 text-purple-500" />}
               {selected ? (
                 <CheckCircle className="w-3.5 h-3.5 text-green-600" />
               ) : (
@@ -139,6 +159,125 @@ export function EventEngine({ selectedEventIds, onToggleEvent }: EventEngineProp
         </div>
       </div>
 
+      {farmerName && (
+        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl p-5 text-white mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Sparkles className="w-5 h-5" />
+                <h3 className="font-semibold">Подбор событий под товары</h3>
+              </div>
+              <p className="text-xs text-purple-100">
+                {farmerName} · {recommendedEvents.length > 0
+                  ? `Найдено ${recommendedEvents.length} подходящих событий`
+                  : 'Найдите события, которые подходят к вашим товарам'}
+              </p>
+            </div>
+            <button
+              onClick={onFindEvents}
+              disabled={eventsLoading}
+              className="bg-white text-purple-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-50 transition-colors disabled:opacity-50 inline-flex items-center gap-2 shrink-0"
+            >
+              {eventsLoading ? (
+                <><div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" /> Поиск...</>
+              ) : (
+                <><Package className="w-4 h-4" /> Подобрать события</>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {eventsError && (
+        <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+          {eventsError}
+        </div>
+      )}
+
+      {recommendedEvents.length > 0 && (
+        <div className="mb-6 bg-white rounded-xl border border-purple-200 p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-4 h-4 text-purple-600" />
+            <h3 className="font-semibold text-sm">
+              Рекомендованные события ({recommendedEvents.length})
+            </h3>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+            {recommendedEvents.slice(0, 12).map((e) => {
+              const selected = isSelected(e.id);
+              const ev = allEvents.find((a) => a.id === e.id);
+              const display: EventItem = ev ?? {
+                id: e.id,
+                event_date: e.event_date,
+                holiday_info: e.holiday_info,
+                category: e.category,
+                about: e.about,
+                food_customs: e.food_customs,
+              };
+              return (
+                <div
+                  key={e.id}
+                  onClick={() => onToggleEvent(display)}
+                  className={`border rounded-lg cursor-pointer transition-all p-2.5 ${
+                    selected
+                      ? 'border-green-500 bg-green-50 ring-1 ring-green-300'
+                      : 'border-purple-200 bg-purple-50/30 hover:border-purple-400'
+                  }`}
+                >
+                  <div className="flex justify-between items-start gap-1">
+                    <p className={`font-medium text-xs flex-1 ${selected ? 'text-green-800' : 'text-gray-800'}`}>
+                      {e.holiday_info}
+                    </p>
+                    {selected ? (
+                      <CheckCircle className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                    ) : (
+                      <PlusCircle className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                    )}
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-0.5">{formatRuDate(e.event_date)}</p>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-[10px] text-purple-600 font-medium">{e.category}</span>
+                    <span className="text-[10px] text-gray-400">
+                      {e.distance < 0.01 ? '∞' : (1 - e.distance).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {selectedEventIds.length > 0 && (
+        <div className="mb-4 bg-white rounded-xl border border-green-200 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Search className="w-4 h-4 text-green-600" />
+            <h3 className="font-semibold text-sm text-green-800">
+              Выбранные события ({selectedEventIds.length})
+            </h3>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {selectedEventIds.map((id) => {
+              const ev = allEvents.find((e) => e.id === id);
+              if (!ev) return null;
+              return (
+                <div
+                  key={ev.id}
+                  onClick={() => onToggleEvent(ev)}
+                  className="inline-flex items-center gap-1.5 bg-green-50 border border-green-300 text-green-800 text-xs rounded-full px-3 py-1.5 cursor-pointer hover:bg-green-100 transition-colors"
+                >
+                  <CheckCircle className="w-3 h-3" />
+                  <span className="font-medium">{ev.holiday_info}</span>
+                  <span className="text-green-500">·</span>
+                  <span className="text-green-600">{formatRuDate(ev.event_date)}</span>
+                  <X className="w-3 h-3 text-green-400 hover:text-green-700 ml-0.5" />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {error && <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{error}</div>}
 
       {loading ? (
@@ -164,7 +303,9 @@ export function EventEngine({ selectedEventIds, onToggleEvent }: EventEngineProp
                     <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide mb-1.5">
                       {monthLabel(y, m)}
                     </p>
-                    <div className="space-y-1 mb-3">{events.map((e) => renderCard(e))}</div>
+                    <div className="space-y-1 mb-3">
+                      {events.map((e) => renderCard(e, recommendedEventIds.has(e.id)))}
+                    </div>
                   </div>
                 );
               })
@@ -177,7 +318,9 @@ export function EventEngine({ selectedEventIds, onToggleEvent }: EventEngineProp
             {upcoming.length === 0 ? (
               <p className="text-sm text-gray-500">В ближайшие 90 дней событий не найдено</p>
             ) : (
-              <div className="space-y-1">{upcoming.map((e) => renderCard(e))}</div>
+              <div className="space-y-1">
+                {upcoming.map((e) => renderCard(e, recommendedEventIds.has(e.id)))}
+              </div>
             )}
           </div>
         </div>

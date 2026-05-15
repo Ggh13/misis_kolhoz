@@ -42,6 +42,22 @@ export type CampaignResult = {
   retry_count?: number;
 };
 
+export type EventSearchMatch = {
+  id: number;
+  event_date: string;
+  holiday_info: string;
+  category: string;
+  about: string;
+  food_customs?: string;
+  distance: number;
+};
+
+export type FarmerInfo = {
+  id: number;
+  name?: string;
+  region?: string;
+};
+
 export type WorkflowState = {
   selectedEventIds: number[];
   selectedEventsById: Record<number, EventItem>;

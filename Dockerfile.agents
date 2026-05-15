@@ -2,10 +2,17 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir fastapi uvicorn
+RUN pip install --no-cache-dir \
+    fastapi \
+    uvicorn \
+    langgraph \
+    langchain-openai \
+    "psycopg[binary]" \
+    pgvector \
+    python-dotenv
 
-COPY agents_mock_app.py /app/agents_mock_app.py
+COPY agents/ /app/agents/
 
 EXPOSE 8010
 
-CMD ["uvicorn", "agents_mock_app:app", "--host", "0.0.0.0", "--port", "8010"]
+CMD ["uvicorn", "agents.marketing_service:app", "--host", "0.0.0.0", "--port", "8010"]

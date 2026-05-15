@@ -15,6 +15,7 @@ export default defineConfig({
       "/upload_events": { target: backendTarget, changeOrigin: true },
       "/events": { target: backendTarget, changeOrigin: true },
       "/farmer_data": { target: backendTarget, changeOrigin: true },
+      "/farmers": { target: backendTarget, changeOrigin: true },
       "/load_orders": { target: backendTarget, changeOrigin: true },
       "/clients": { target: backendTarget, changeOrigin: true },
       "/client_bonus": { target: backendTarget, changeOrigin: true },

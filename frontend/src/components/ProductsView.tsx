@@ -1,9 +1,10 @@
-import { Package, TrendingUp, Star, ThumbsUp, AlertCircle } from 'lucide-react';
+import { Package, Star, ThumbsUp, Sparkles, Store } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { MatchedProduct, EventItem, MatchInfo } from '../types';
 
 interface ProductsViewProps {
-  products: MatchedProduct[];
+  farmerProducts: MatchedProduct[];
+  matchedProducts: MatchedProduct[];
   selectedMatch: {
     product: MatchedProduct;
     event: EventItem;
@@ -13,34 +14,16 @@ interface ProductsViewProps {
   onSelectProduct: (product: MatchedProduct) => void;
 }
 
-type DemoProduct = {
-  name: string;
-  price: number;
-  category: string;
-  trend: string;
-};
-
-const demoProducts: DemoProduct[] = [
-  { name: 'Творог домашний 18%', price: 280, category: 'Молочные', trend: '+45%' },
-  { name: 'Молоко безлактозное', price: 180, category: 'Молочные', trend: '+156%' },
-  { name: 'Яйца куриные С0', price: 150, category: 'Яйца', trend: '+32%' },
-  { name: 'Мёд натуральный', price: 890, category: 'Сладости', trend: '+78%' },
-  { name: 'Куриное филе', price: 350, category: 'Мясо', trend: '+22%' },
-  { name: 'Хлеб ржаной', price: 80, category: 'Хлеб', trend: '+15%' },
-];
-
 export function ProductsView({
-  products,
+  farmerProducts,
+  matchedProducts,
   selectedMatch,
   isLoading,
   onSelectProduct,
 }: ProductsViewProps) {
-  const hasRealResults = products.length > 0;
-
-  const handleClick = (product: MatchedProduct) => {
-    if (!hasRealResults) return;
-    onSelectProduct(product);
-  };
+  const hasFarmerProducts = farmerProducts.length > 0;
+  const hasMatchedResults = matchedProducts.length > 0;
+  const matchedIds = new Set(matchedProducts.map((p) => p.product_id));
 
   return (
     <div className="p-6">
@@ -49,47 +32,78 @@ export function ProductsView({
         <p className="text-sm text-gray-600">
           {isLoading
             ? 'Загрузка товаров...'
-            : hasRealResults
-            ? 'Ранжированные результаты по векторному поиску'
-            : 'Каталог товаров (выберите событие для ML-анализа)'}
+            : hasFarmerProducts
+            ? `Каталог товаров фермера · ${farmerProducts.length} позиций`
+            : 'Выберите фермера на вкладке «Загрузка данных»'}
         </p>
       </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <div className="w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
-          <span className="ml-3 text-sm text-gray-600">Поиск подходящих товаров…</span>
+          <span className="ml-3 text-sm text-gray-600">Загрузка товаров фермера…</span>
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            {hasRealResults
-              ? products.map((p) => {
-                  const isSelected = selectedMatch?.product.id === p.id;
+          {hasFarmerProducts && (
+            <>
+              {hasMatchedResults && (
+                <motion.div
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-purple-50 border border-purple-200 rounded-xl p-3 mb-4 flex items-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
+                  <p className="text-xs text-purple-700">
+                    <span className="font-medium">{matchedProducts.length}</span> товаров подходят по векторному поиску к выбранным событиям — они отмечены иконкой <Sparkles className="w-3 h-3 inline text-purple-500" />
+                  </p>
+                </motion.div>
+              )}
+
+              <div className="grid grid-cols-3 gap-4 mb-6">
+                {farmerProducts.map((p, index) => {
+                  const isSelected = selectedMatch?.product.product_id === p.product_id;
+                  const isMatched = matchedIds.has(p.product_id);
                   return (
                     <motion.div
-                      key={p.id}
+                      key={p.product_id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.05 }}
-                      onClick={() => handleClick(p)}
-                      className={`bg-white rounded-xl border border-gray-200 p-4 cursor-pointer transition-all hover:shadow-md ${
-                        isSelected ? 'border-green-500 bg-green-50 shadow-md ring-2 ring-green-200' : ''
+                      transition={{ delay: Math.min(index * 0.03, 0.5) }}
+                      onClick={() => onSelectProduct(p)}
+                      className={`bg-white rounded-xl border p-4 cursor-pointer transition-all hover:shadow-md ${
+                        isSelected
+                          ? 'border-green-500 bg-green-50 shadow-md ring-2 ring-green-200'
+                          : isMatched
+                          ? 'border-purple-300 hover:border-purple-400'
+                          : 'border-gray-200'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <Package className="w-6 h-6 text-gray-300" />
-                        {isSelected && <Star className="w-4 h-4 text-yellow-500 fill-current" />}
+                        <div className="flex items-center gap-1">
+                          {isMatched && (
+                            <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-medium inline-flex items-center gap-0.5">
+                              <Sparkles className="w-3 h-3" />
+                              match
+                            </span>
+                          )}
+                          {isSelected && <Star className="w-4 h-4 text-yellow-500 fill-current" />}
+                        </div>
                       </div>
                       <h3 className="font-semibold text-gray-900 text-sm mb-1">{p.product_name}</h3>
                       <div className="flex items-center justify-between mt-2">
                         <p className="text-xl font-semibold text-gray-800">{p.price.toLocaleString()} ₽</p>
-                        <span className="inline-flex items-center gap-1 text-green-700 text-sm">
-                          <TrendingUp className="w-3 h-3" />
-                          +12%
-                        </span>
+                        {p.unit && (
+                          <span className="text-xs text-gray-400">за {p.unit}</span>
+                        )}
                       </div>
-                      {p.category && <p className="text-xs text-gray-500 mt-1">{p.category}</p>}
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="text-xs text-gray-500">{p.category}</p>
+                        {p.quantity > 0 && (
+                          <span className="text-xs text-gray-400">{p.quantity} шт</span>
+                        )}
+                      </div>
                       {isSelected && (
                         <div className="flex items-center gap-1 mt-2 text-green-600 text-xs">
                           <ThumbsUp className="w-3 h-3" />
@@ -98,30 +112,24 @@ export function ProductsView({
                       )}
                     </motion.div>
                   );
-                })
-              : demoProducts.map((p, index) => (
-                  <motion.div
-                    key={p.name}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="bg-white rounded-xl border border-gray-200 p-4 cursor-default"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <Package className="w-6 h-6 text-gray-300" />
-                    </div>
-                    <h3 className="font-semibold text-gray-900 text-sm mb-1">{p.name}</h3>
-                    <div className="flex items-center justify-between mt-2">
-                      <p className="text-xl font-semibold text-gray-800">{p.price.toLocaleString()} ₽</p>
-                      <span className="inline-flex items-center gap-1 text-green-700 text-sm">
-                        <TrendingUp className="w-3 h-3" />
-                        {p.trend}
-                      </span>
-                    </div>
-                    {p.category && <p className="text-xs text-gray-500 mt-1">{p.category}</p>}
-                  </motion.div>
-                ))}
-          </div>
+                })}
+              </div>
+            </>
+          )}
+
+          {!hasFarmerProducts && !isLoading && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-center py-16 bg-white rounded-xl border border-gray-200"
+            >
+              <Store className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+              <p className="font-medium text-gray-600">Каталог товаров</p>
+              <p className="text-sm text-gray-400 mt-1">
+                Сначала выберите фермера на вкладке «Загрузка данных», чтобы увидеть его товары
+              </p>
+            </motion.div>
+          )}
 
           {/* Match info */}
           {selectedMatch && (
@@ -153,22 +161,6 @@ export function ProductsView({
               <p className="text-xs text-green-600 mt-2">
                 Нажмите «Создать кампанию» на вкладке Аналитика для генерации маркетингового плана
               </p>
-            </motion.div>
-          )}
-
-          {!hasRealResults && !isLoading && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="bg-amber-50 border border-amber-200 rounded-xl p-4 mt-4"
-            >
-              <div className="flex items-center gap-2 text-amber-800 text-sm">
-                <AlertCircle className="w-4 h-4" />
-                <span>
-                  Для получения реальных рекомендаций выберите событие на вкладке «События и тренды».
-                  Загруженные данные будут использоваться для ML-анализа.
-                </span>
-              </div>
             </motion.div>
           )}
         </>

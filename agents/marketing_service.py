@@ -1,3 +1,4 @@
+import math
 import os
 from typing import Any, Dict
 
@@ -34,6 +35,18 @@ class DynamicRunRequest(BaseModel):
     date_from: str
     date_to: str
     top_k: int = 1
+
+
+def _sanitize(obj: Any) -> Any:
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(v) for v in obj]
+    return obj
 
 
 def _get_db_url() -> str:
@@ -212,19 +225,22 @@ def _fetch_dynamic_context(
     }
 
 
+def _run_workflow(state: Dict[str, Any]) -> Dict[str, Any]:
+    return _sanitize(workflow.invoke(state))
+
+
 @app.post("/agents/run")
 def run_agents(data: RunRequest):
     context = _fetch_context(data.match_id)
     state = {
-        **context,
+        **_sanitize(context),
         "plan": {},
         "content": {},
         "validator_notes": [],
         "plan_approved": False,
         "retry_count": 0,
     }
-    result = workflow.invoke(state)
-    return result
+    return _run_workflow(state)
 
 
 @app.post("/agents/run_raw")
@@ -240,8 +256,7 @@ def run_agents_raw(data: RawRunRequest):
         "plan_approved": False,
         "retry_count": 0,
     }
-    result = workflow.invoke(state)
-    return result
+    return _run_workflow(state)
 
 
 @app.post("/agents/run_dynamic")
@@ -250,15 +265,14 @@ def run_agents_dynamic(data: DynamicRunRequest):
         data.product_id, data.date_from, data.date_to, data.top_k
     )
     state = {
-        **context,
+        **_sanitize(context),
         "plan": {},
         "content": {},
         "validator_notes": [],
         "plan_approved": False,
         "retry_count": 0,
     }
-    result = workflow.invoke(state)
-    return result
+    return _run_workflow(state)
 
 
 if __name__ == "__main__":

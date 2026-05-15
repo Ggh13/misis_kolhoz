@@ -39,6 +39,25 @@ func (h *Handler) UploadData(contx context.Context) gin.HandlerFunc {
 	}
 }
 
+func (h *Handler) SearchFarmers(contx context.Context) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		query := ctx.Query("q")
+		if query == "" {
+			ctx.JSON(400, "query is required")
+			return
+		}
+
+		results, err := h.service.SearchFarmers(contx, query)
+		if err != nil {
+			logger.GetLoggerFromCtx(contx).Info(contx, "Failed search farmers", zap.Error(err))
+			ctx.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+
+		ctx.JSON(200, results)
+	}
+}
+
 func (h *Handler) GetFarmerData(contx context.Context) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		idStr := ctx.Param("id")

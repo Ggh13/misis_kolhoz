@@ -6,10 +6,8 @@ import { EventEngine } from './components/EventEngine';
 import { SemanticMatcher } from './components/SemanticMatcher';
 import { ProductsView } from './components/ProductsView';
 import { Analytics } from './components/Analytics';
-import { AIAssistant } from './components/AIAssistant';
 import { ParticleBackground } from './components/ParticleBackground';
-import { MlServices } from './components/MlServices';
-import type { EventItem, MatchedProduct, WorkflowState } from './types';
+import type { EventItem, MatchedProduct, FarmerInfo, EventSearchMatch, WorkflowState } from './types';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -20,15 +18,96 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<WorkflowState['selectedMatch']>(null);
   const [campaignResult, setCampaignResult] = useState<WorkflowState['campaignResult']>(null);
+  const [selectedFarmer, setSelectedFarmer] = useState<FarmerInfo | null>(null);
+  const [farmerProducts, setFarmerProducts] = useState<MatchedProduct[]>([]);
+  const [farmerProductsLoading, setFarmerProductsLoading] = useState(false);
+  const [recommendedEvents, setRecommendedEvents] = useState<EventSearchMatch[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+
+  const [eventsError, setEventsError] = useState('');
+
+  const handleFindEvents = useCallback(async () => {
+    if (farmerProducts.length === 0 || !selectedFarmer) return;
+    const firstProduct = farmerProducts[0];
+    if (!firstProduct) return;
+    setEventsLoading(true);
+    setEventsError('');
+    try {
+      const res = await fetch('/vector/events/for-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: firstProduct.product_id, limit: 20 }),
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setRecommendedEvents(data.events ?? []);
+    } catch (err) {
+      console.error('Failed to find events:', err);
+      setEventsError(`Не удалось подобрать события: ${err instanceof Error ? err.message : 'ошибка'}`);
+    } finally {
+      setEventsLoading(false);
+    }
+  }, [farmerProducts, selectedFarmer]);
+
+  const handleSelectFarmer = useCallback(async (farmer: FarmerInfo | null) => {
+    setSelectedFarmer(farmer);
+    setSelectedEventIds([]);
+    setSelectedEventsById({});
+    setEventResults({});
+    setSelectedMatch(null);
+    setCampaignResult(null);
+
+    if (farmer) {
+      setFarmerProductsLoading(true);
+      try {
+        const res = await fetch(`/farmer_data/${farmer.id}`);
+        const data = await res.json();
+        if (data?.products) {
+          const mapped: MatchedProduct[] = data.products.map((p: Record<string, unknown>) => ({
+            id: p.id as number,
+            product_id: p.id as number,
+            farmer_id: farmer.id,
+            product_name: p.product_name as string,
+            category: p.category as string,
+            unit: p.unit as string,
+            price: p.price as number,
+            quantity: p.quantity as number,
+          }));
+          setFarmerProducts(mapped);
+        }
+      } catch (err) {
+        console.error('Failed to load farmer products:', err);
+      } finally {
+        setFarmerProductsLoading(false);
+      }
+    } else {
+      setFarmerProducts([]);
+    }
+  }, []);
+
+  const farmerFilteredResults = useMemo(() => {
+    if (!selectedFarmer) return eventResults;
+    const filtered: Record<number, MatchedProduct[]> = {};
+    for (const [eventId, products] of Object.entries(eventResults)) {
+      const filteredProducts = products.filter((p) => p.farmer_id === selectedFarmer.id);
+      if (filteredProducts.length > 0) {
+        filtered[Number(eventId)] = filteredProducts;
+      }
+    }
+    return filtered;
+  }, [eventResults, selectedFarmer]);
 
   const matchedProducts = useMemo(() => {
     const seen = new Set<number>();
-    return Object.values(eventResults).flat().filter((p) => {
+    return Object.values(farmerFilteredResults).flat().filter((p) => {
       if (seen.has(p.product_id)) return false;
       seen.add(p.product_id);
       return true;
     });
-  }, [eventResults]);
+  }, [farmerFilteredResults]);
 
   const workflow: WorkflowState = {
     selectedEventIds,
@@ -50,10 +129,15 @@ export default function App() {
       const embedData = await embedRes.json();
       const embedding = embedData.embedding;
       if (!embedding || !Array.isArray(embedding)) throw new Error('Invalid embedding');
+
+      const searchBody: Record<string, unknown> = { vector: embedding, limit: 20 };
+      if (selectedFarmer) {
+        searchBody.farmer_id = selectedFarmer.id;
+      }
       const searchRes = await fetch('/vector/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vector: embedding, limit: 10 }),
+        body: JSON.stringify(searchBody),
       });
       const searchData = await searchRes.json();
       return (searchData.products ?? []) as MatchedProduct[];
@@ -63,7 +147,7 @@ export default function App() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [selectedFarmer]);
 
   const handleToggleEvent = useCallback(async (event: EventItem) => {
     if (selectedEventIds.includes(event.id)) {
@@ -118,14 +202,24 @@ export default function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard workflow={workflow} />;
-      case 'ingestion': return <DataIngestion />;
+      case 'ingestion': return <DataIngestion selectedFarmer={selectedFarmer} onSelectFarmer={handleSelectFarmer} farmerProducts={farmerProducts} />;
       case 'events':
-        return <EventEngine selectedEventIds={selectedEventIds} onToggleEvent={handleToggleEvent} />;
+        return (
+          <EventEngine
+            selectedEventIds={selectedEventIds}
+            onToggleEvent={handleToggleEvent}
+            recommendedEvents={recommendedEvents}
+            onFindEvents={handleFindEvents}
+            eventsLoading={eventsLoading}
+            eventsError={eventsError}
+            farmerName={selectedFarmer?.name ?? null}
+          />
+        );
       case 'matcher':
         return (
           <SemanticMatcher
             selectedEvents={selectedEventIds.map((id) => selectedEventsById[id]).filter((e): e is EventItem => e !== undefined)}
-            matchedProducts={matchedProducts}
+            eventResults={farmerFilteredResults}
             selectedMatch={selectedMatch}
             isLoading={isLoading}
           />
@@ -133,9 +227,10 @@ export default function App() {
       case 'products':
         return (
           <ProductsView
-            products={matchedProducts}
+            farmerProducts={farmerProducts}
+            matchedProducts={matchedProducts}
             selectedMatch={selectedMatch}
-            isLoading={isLoading}
+            isLoading={isLoading || farmerProductsLoading}
             onSelectProduct={handleSelectProduct}
           />
         );
@@ -148,7 +243,6 @@ export default function App() {
             onGenerateCampaign={handleGenerateCampaign}
           />
         );
-      case 'ml': return <MlServices />;
       default: return <Dashboard workflow={workflow} />;
     }
   };
@@ -161,9 +255,9 @@ export default function App() {
         onTabChange={setActiveTab}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        selectedFarmer={selectedFarmer}
       />
       <div className="flex-1 overflow-auto relative z-10">{renderContent()}</div>
-      <AIAssistant />
     </div>
   );
 }

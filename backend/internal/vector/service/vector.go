@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 
 	"misis_kolhoz/internal/vector/model"
@@ -41,14 +42,35 @@ func (s *VectorService) Delete(ctx context.Context, productID int) error {
 	return s.repo.Delete(ctx, productID)
 }
 
-func (s *VectorService) Search(ctx context.Context, embedding []float32, limit int) ([]model.ProductEmbedding, error) {
+func (s *VectorService) Search(ctx context.Context, embedding []float32, limit int, farmerID int) ([]model.ProductEmbedding, error) {
 	if len(embedding) == 0 {
 		return nil, errors.New("embedding is required")
 	}
 	if limit <= 0 {
 		return nil, errors.New("limit must be positive")
 	}
-	return s.repo.Search(ctx, embedding, limit)
+	return s.repo.Search(ctx, embedding, limit, farmerID)
+}
+
+func (s *VectorService) SearchEventsByProduct(ctx context.Context, productID int, limit int) ([]model.EventEmbedding, error) {
+	product, err := s.repo.Get(ctx, productID)
+	if err != nil {
+		return nil, fmt.Errorf("get product embedding: %w", err)
+	}
+	if product == nil {
+		return nil, errors.New("product not found")
+	}
+	return s.repo.SearchEvents(ctx, product.Embedding, limit)
+}
+
+func (s *VectorService) SearchEvents(ctx context.Context, embedding []float32, limit int) ([]model.EventEmbedding, error) {
+	if len(embedding) == 0 {
+		return nil, errors.New("embedding is required")
+	}
+	if limit <= 0 {
+		return nil, errors.New("limit must be positive")
+	}
+	return s.repo.SearchEvents(ctx, embedding, limit)
 }
 
 func (s *VectorService) CalculateDistance(vecA, vecB []float32) (cosine, euclidean float64) {
