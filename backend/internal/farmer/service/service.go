@@ -15,6 +15,7 @@ type Repository interface {
 	AddFarmerProduct(ctx context.Context, product farmermodel.FarmerProduct) error
 	GetFarmerByID(ctx context.Context, id int) (farmermodel.Farmer, error)
 	GetFarmerProducts(ctx context.Context, farmerID int) ([]farmermodel.FarmerProduct, error)
+	SearchFarmers(ctx context.Context, query string) ([]farmermodel.FarmerSearchResult, error)
 }
 
 type Service struct {
@@ -146,6 +147,10 @@ func (s *Service) processSheet(ctx context.Context, f *excelize.File, sheetName 
 	}
 
 	return nil
+}
+
+func (s *Service) SearchFarmers(ctx context.Context, query string) ([]farmermodel.FarmerSearchResult, error) {
+	return s.repo.SearchFarmers(ctx, query)
 }
 
 func (s *Service) GetFarmerByID(ctx context.Context, id int) (farmermodel.FarmerWithProducts, error) {

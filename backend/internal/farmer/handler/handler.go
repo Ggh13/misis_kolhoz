@@ -35,7 +35,26 @@ func (h *Handler) UploadData(contx context.Context) gin.HandlerFunc {
 			return
 		}
 
-		ctx.JSON(200, "Successfully loaded data from excel")
+		ctx.JSON(200, "Successfully loaded data from excel. Run reseed script for embeddings.")
+	}
+}
+
+func (h *Handler) SearchFarmers(contx context.Context) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		query := ctx.Query("q")
+		if query == "" {
+			ctx.JSON(400, "query is required")
+			return
+		}
+
+		results, err := h.service.SearchFarmers(contx, query)
+		if err != nil {
+			logger.GetLoggerFromCtx(contx).Info(contx, "Failed search farmers", zap.Error(err))
+			ctx.JSON(500, gin.H{"error": err.Error()})
+			return
+		}
+
+		ctx.JSON(200, results)
 	}
 }
 

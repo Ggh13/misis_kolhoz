@@ -112,13 +112,45 @@ func (h *VectorHandler) Search(c *gin.Context) {
 		return
 	}
 
-	results, err := h.svc.Search(c.Request.Context(), req.Vector, int(req.Limit))
+	results, err := h.svc.Search(c.Request.Context(), req.Vector, int(req.Limit), req.FarmerID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, model.SearchResponse{Products: results})
+}
+
+func (h *VectorHandler) SearchEventsForProduct(c *gin.Context) {
+	var req model.EventForProductRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	results, err := h.svc.SearchEventsByProduct(c.Request.Context(), req.ProductID, int(req.Limit))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, model.EventSearchResponse{Events: results})
+}
+
+func (h *VectorHandler) SearchEvents(c *gin.Context) {
+	var req model.EventSearchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	results, err := h.svc.SearchEvents(c.Request.Context(), req.Vector, int(req.Limit))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, model.EventSearchResponse{Events: results})
 }
 
 func (h *VectorHandler) Distance(c *gin.Context) {

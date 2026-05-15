@@ -57,6 +57,8 @@ const (
 	SelectFarmerProductsByFarmerID = `SELECT id, farmer_id, product_name, category, unit, price, quantity, product_description
 		FROM farmer_products WHERE farmer_id = $1`
 
+	SearchFarmersByName = `SELECT id, name, region FROM farmers WHERE name ILIKE '%' || $1 || '%' ORDER BY name LIMIT 20`
+
 	AlterFarmersAddDescription = `ALTER TABLE public.farmers
 		ADD COLUMN IF NOT EXISTS farmer_description TEXT`
 
@@ -144,6 +146,24 @@ func (r *Repository) GetFarmerByID(ctx context.Context, id int) (farmermodel.Far
 		return farmer, fmt.Errorf("farmerrepository.GetFarmerByID: %w", err)
 	}
 	return farmer, nil
+}
+
+func (r *Repository) SearchFarmers(ctx context.Context, query string) ([]farmermodel.FarmerSearchResult, error) {
+	rows, err := r.pgDB.Query(ctx, SearchFarmersByName, query)
+	if err != nil {
+		return nil, fmt.Errorf("farmerrepository.SearchFarmers: %w", err)
+	}
+	defer rows.Close()
+
+	var results []farmermodel.FarmerSearchResult
+	for rows.Next() {
+		var f farmermodel.FarmerSearchResult
+		if err := rows.Scan(&f.ID, &f.Name, &f.Region); err != nil {
+			return nil, fmt.Errorf("farmerrepository.SearchFarmers scan: %w", err)
+		}
+		results = append(results, f)
+	}
+	return results, nil
 }
 
 func (r *Repository) GetFarmerProducts(ctx context.Context, farmerID int) ([]farmermodel.FarmerProduct, error) {

@@ -3,9 +3,11 @@ package repository
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"misis_kolhoz/internal/vector/model"
 )
@@ -62,6 +64,16 @@ const (
 	SearchVectors = `SELECT id, product_id, farmer_id, product_name, category, unit, price, quantity,
 		farmer_description, product_description
 		FROM product_embeddings ORDER BY embedding <=> $1::vector LIMIT $2`
+
+	SearchVectorsByFarmer = `SELECT id, product_id, farmer_id, product_name, category, unit, price, quantity,
+		farmer_description, product_description
+		FROM product_embeddings WHERE farmer_id = $3 ORDER BY embedding <=> $1::vector LIMIT $2`
+
+	SearchEventVectors = `SELECT id, event_date, holiday_info, category, about, food_customs,
+		embedding <=> $1::vector AS distance
+		FROM event_embeddings
+		WHERE event_date::date >= CURRENT_DATE
+		ORDER BY distance ASC LIMIT $2`
 
 	AlterProductEmbeddingsAddFarmerDescription = `ALTER TABLE public.product_embeddings
 		ADD COLUMN IF NOT EXISTS farmer_description TEXT`
@@ -191,14 +203,20 @@ func (r *VectorRepository) Delete(ctx context.Context, productID int) error {
 	return nil
 }
 
-func (r *VectorRepository) Search(ctx context.Context, embedding []float32, limit int) ([]model.ProductEmbedding, error) {
+func (r *VectorRepository) Search(ctx context.Context, embedding []float32, limit int, farmerID int) ([]model.ProductEmbedding, error) {
 	if len(embedding) != 384 {
 		return nil, fmt.Errorf("invalid embedding size: expected 384, got %d", len(embedding))
 	}
 
 	vecStr := formatVectorForSQL(embedding)
 
-	rows, err := r.pgDB.Query(ctx, SearchVectors, vecStr, limit)
+	var rows pgx.Rows
+	var err error
+	if farmerID > 0 {
+		rows, err = r.pgDB.Query(ctx, SearchVectorsByFarmer, vecStr, limit, farmerID)
+	} else {
+		rows, err = r.pgDB.Query(ctx, SearchVectors, vecStr, limit)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("vector search: %w", err)
 	}
@@ -210,6 +228,35 @@ func (r *VectorRepository) Search(ctx context.Context, embedding []float32, limi
 		if err := rows.Scan(&e.ID, &e.ProductID, &e.FarmerID, &e.ProductName, &e.Category,
 			&e.Unit, &e.Price, &e.Quantity, &e.FarmerDescription, &e.ProductDescription); err != nil {
 			return nil, fmt.Errorf("vector search scan: %w", err)
+		}
+		results = append(results, e)
+	}
+
+	return results, nil
+}
+
+func (r *VectorRepository) SearchEvents(ctx context.Context, embedding []float32, limit int) ([]model.EventEmbedding, error) {
+	if len(embedding) != 384 {
+		return nil, fmt.Errorf("invalid embedding size: expected 384, got %d", len(embedding))
+	}
+
+	vecStr := formatVectorForSQL(embedding)
+
+	rows, err := r.pgDB.Query(ctx, SearchEventVectors, vecStr, limit)
+	if err != nil {
+		return nil, fmt.Errorf("vector search events: %w", err)
+	}
+	defer rows.Close()
+
+	var results []model.EventEmbedding
+	for rows.Next() {
+		var e model.EventEmbedding
+		if err := rows.Scan(&e.ID, &e.EventDate, &e.HolidayInfo, &e.Category,
+			&e.About, &e.FoodCustoms, &e.Distance); err != nil {
+			return nil, fmt.Errorf("vector search events scan: %w", err)
+		}
+		if math.IsNaN(e.Distance) || math.IsInf(e.Distance, 0) {
+			e.Distance = 0
 		}
 		results = append(results, e)
 	}

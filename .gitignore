@@ -5,3 +5,4 @@ __pycache__/
 /.sisyphus/
 /frontend/node_modules
 /frontend/dist
+/front_example

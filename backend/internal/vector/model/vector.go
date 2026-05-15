@@ -20,12 +20,37 @@ type UpsertVectorRequest struct {
 }
 
 type SearchRequest struct {
-	Vector []float32 `json:"vector" binding:"required"`
-	Limit  int       `json:"limit" binding:"required,min=1"`
+	Vector   []float32 `json:"vector" binding:"required"`
+	Limit    int       `json:"limit" binding:"required,min=1"`
+	FarmerID int       `json:"farmer_id,omitempty"`
 }
 
 type SearchResponse struct {
 	Products []ProductEmbedding `json:"products"`
+}
+
+type EventEmbedding struct {
+	ID         int     `json:"id"`
+	EventDate  string  `json:"event_date"`
+	HolidayInfo string `json:"holiday_info"`
+	Category   string  `json:"category"`
+	About      string  `json:"about"`
+	FoodCustoms string `json:"food_customs,omitempty"`
+	Distance   float64 `json:"distance"`
+}
+
+type EventSearchRequest struct {
+	Vector []float32 `json:"vector" binding:"required"`
+	Limit  int       `json:"limit" binding:"required,min=1"`
+}
+
+type EventForProductRequest struct {
+	ProductID int `json:"product_id" binding:"required"`
+	Limit     int `json:"limit" binding:"required,min=1"`
+}
+
+type EventSearchResponse struct {
+	Events []EventEmbedding `json:"events"`
 }
 
 type DistanceRequest struct {

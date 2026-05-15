@@ -25,3 +25,9 @@ type FarmerWithProducts struct {
 	Farmer   Farmer          `json:"farmer"`
 	Products []FarmerProduct `json:"products"`
 }
+
+type FarmerSearchResult struct {
+	ID     int    `json:"id"`
+	Name   string `json:"name"`
+	Region string `json:"region"`
+}
