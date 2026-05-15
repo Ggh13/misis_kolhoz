@@ -1,1 +1,0 @@
-# misis_kolhoz
