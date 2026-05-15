@@ -6,36 +6,54 @@
 # 1. Клонировать репозиторий
 git clone <repo-url> && cd misis_kolhoz
 
-# 2. Запустить все сервисы (Go backend, Python AI pipeline, Postgres + pgvector, Frontend)
+# 2. Создать .env с API-ключами (обязательно)
+echo "GROQ_API_KEY=your_groq_key_here" >> .env
+echo "HF_TOKEN=your_hf_token_here" >> .env
+
+# 3. Запустить все сервисы
+#    — Go backend (порт 8080)
+#    — ML-service: E5 embeddings + Groq extraction (порт 8000)
+#    — Marketing agents: LangGraph агенты (порт 8010)
+#    — Frontend: React 19 (порт 80)
+#    — Postgres 15 + pgvector (порт 5432)
 docker-compose up --build -d
 
-# 3. Проверить, что всё встало
+# 4. Проверить, что всё встало
 curl http://localhost:8080/health
 # → {"status":"ok"}
 
-# 4. Загрузить данные фермеров и товаров
+# 5. Загрузить данные фермеров и товаров из Excel
 curl -X POST http://localhost:8080/upload_data
 
-# 5. Загрузить календарь событий
+# 6. Загрузить календарь событий (366 праздников на 2026 год)
 curl -X POST http://localhost:8080/upload_events
 
-# 6. Открыть фронтенд в браузере
+# 7. Пересчитать эмбеддинги для товаров и событий (через E5 + Groq)
+docker exec misis_kolhoz-ml python scripts/reseed_embeddings.py --farmer-ids "1001,1002"
+
+# 8. Открыть фронтенд в браузере
 open http://localhost:80
 ```
 
-**Порт назначения:**
-- Frontend: http://localhost:80
-- Go API: http://localhost:8080
+**Порты сервисов:**
+| Сервис | Адрес | Назначение |
+|--------|-------|------------|
+| Frontend | http://localhost:80 | React SPA |
+| Go API | http://localhost:8080 | REST API |
+| ML Service | http://localhost:8000 | E5 embeddings / Groq |
+| Agents | http://localhost:8010 | LangGraph агенты |
 
 ```bash
 # Остановка
 docker-compose down
 
-# Полная перезагрузка (с удалением данных)
+# Полная перезагрузка (с удалением данных БД)
 docker-compose down -v
 
 # Логи
 docker-compose logs -f app
+docker-compose logs -f ml-service
+docker-compose logs -f marketing-agents
 docker-compose logs -f frontend
 ```
 
@@ -50,37 +68,48 @@ docker-compose logs -f frontend
 ## Архитектура сервиса
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Frontend (React 19 + Vite)                       │
-│    Загрузка данных │ Поиск фермеров │ Бонусы │ Рекомендации         │
-└──────────────────────────┬──────────────────────────────────────────┘
-                           │ HTTP (Nginx → Go Backend)
-┌──────────────────────────▼──────────────────────────────────────────┐
-│                     Go Backend (Gin Framework)                      │
-│  ┌──────────┐  ┌──────────┐  ┌────────────┐  ┌──────────────────┐  │
-│  │ Farmer   │  │ Events   │  │ Loyalty    │  │ Recommendation   │  │
-│  │ Module   │  │ Module   │  │ Module     │  │ Module           │  │
-│  └────┬─────┘  └────┬─────┘  └─────┬──────┘  └────────┬─────────┘  │
-│  ┌────▼──────────────▼──────────────▼──────────────────▼─────────┐  │
-│  │                     Vector Module (pgvector)                   │  │
-│  └───────────────────────────────────────────────────────────────┘  │
-└──────────────────────────┬──────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    Frontend (React 19 + Vite + Tailwind)                │
+│  Dashboard │ Events │ Matcher │ Products │ Analytics │ AI Assistant     │
+└───────────┬─────────────────────────────────────────────────────────────┘
+            │ HTTP (Nginx)
+┌───────────▼─────────────────────────────────────────────────────────────┐
+│                     Go Backend — порт 8080 (Gin)                       │
+│  ┌──────────┐  ┌──────────┐  ┌────────────┐  ┌──────────────────────┐  │
+│  │ Farmer   │  │ Events   │  │ Loyalty    │  │ Recommendation       │  │
+│  │ Module   │  │ Module   │  │ Module     │  │ Module (кэш 1 мин.)  │  │
+│  └────┬─────┘  └────┬─────┘  └─────┬──────┘  └──────────┬───────────┘  │
+│  ┌────▼──────────────▼──────────────▼────────────────────▼───────────┐  │
+│  │              Vector Module (pgvector — 384d)                       │  │
+│  │  product search │ event search │ product→event matching            │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────┬──────────────────────────────────────────────┘
                            │
-┌──────────────────────────▼──────────────────────────────────────────┐
-│               PostgreSQL + pgvector (расширение)                     │
-│  farmers │ farmer_products │ product_embeddings │ event_embeddings   │
-│  clients │ bonus_transactions                                      │
-└─────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────▼──────────────────────────────────────────────┐
+│              PostgreSQL 15 + pgvector (IVFFlat index)                   │
+│  farmers │ farmer_products │ product_embeddings │ event_embeddings      │
+│  clients │ bonus_transactions │ 366 ивентов (seed в db/init.sql)       │
+└─────────────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────────┐
-│               Python AI Pipeline (FastAPI)                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐  │
-│  │ Extractor    │  │ Embedder     │  │ Agents (LangGraph)       │  │
-│  │ (LLM → Groq) │  │ (E5-small)   │  │ Strategist → SMM → Valid │  │
-│  │ парсинг      │  │ векторные    │  │ формирование             │  │
-│  │ описаний     │  │ представл.   │  │ маркетингового плана     │  │
-│  └──────────────┘  └──────────────┘  └──────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│  ML Service — порт 8000 (FastAPI)                                       │
+│  ┌─────────────────┐  ┌──────────────────┐  ┌───────────────────────┐  │
+│  │ Extractor       │  │ Embedder         │  │ Fast E5 endpoint      │  │
+│  │ (LLM → Groq)    │  │ (E5-small, 384d) │  │ /embed/text (без LLM) │  │
+│  │ парсинг описаний│  │ векторизация     │  │                       │  │
+│  └─────────────────┘  └──────────────────┘  └───────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Marketing Agents — порт 8010 (FastAPI + LangGraph)                     │
+│  ┌──────────────┐    ┌──────────┐    ┌──────────────┐                   │
+│  │  Strategist  │ →  │ SMM-лид  │ →  │  Validator   │ → повтор до 3x   │
+│  │  (план +     │    │ (посты,  │    │ (проверка    │                   │
+│  │   акции)     │    │  сторис, │    │  контента)   │                   │
+│  │              │    │  пуши)   │    │              │                   │
+│  └──────────────┘    └──────────┘    └──────────────┘                   │
+│  Эндпоинты: /agents/run │ /agents/run_dynamic │ /agents/run_raw        │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -266,41 +295,55 @@ docker-compose logs -f frontend
 
 | Компонент | Технологии |
 |-----------|-----------|
-| **Backend API** | Go 1.24, Gin Framework, pgx |
-| **AI Pipeline** | Python 3, FastAPI, LangGraph, Groq (LLM) |
-| **Embeddings** | intfloat/multilingual-e5-small, transformers, PyTorch |
-| **Векторная БД** | PostgreSQL + pgvector (IVFFlat) |
-| **База данных** | PostgreSQL 15 |
-| **Фронтенд** | React 19 + Vite + TypeScript, Nginx |
-| **Инфраструктура** | Docker Compose |
+| **Backend API** | Go 1.24, Gin Framework, pgx, Excelize |
+| **ML Service** | Python 3.11, FastAPI, Groq (LLama 3.3-70b) |
+| **Marketing Agents** | Python 3.11, FastAPI, LangGraph, LangChain |
+| **Embeddings** | intfloat/multilingual-e5-small (384d), transformers, PyTorch (CPU) |
+| **Защита от инъекций** | protectai/deberta-v3-base-prompt-injection-v2 |
+| **Векторная БД** | PostgreSQL 15 + pgvector (IVFFlat, lists=100) |
+| **База данных** | PostgreSQL 15, pgx, pgvector |
+| **Фронтенд** | React 19 + Vite + TypeScript, Tailwind CSS, framer-motion, lucide-react |
+| **Инфраструктура** | Docker Compose (5 контейнеров), Nginx |
 
 ## API Endpoints
 
-### Farmer & Products
-- `POST /upload_data` — загрузка данных фермеров из Excel
+### Farmer & Products (порт 8080)
+- `POST /upload_data` — загрузка данных фермеров из `farmers_sku.xlsx`
 - `GET /farmer_data/:id` — информация о фермере и его продукции
+- `GET /farmers/search?q=` — поиск фермеров по имени (ILIKE)
 
-### Events
-- `POST /upload_events` — загрузка календаря событий
-- `GET /events` — все события
+### Events (порт 8080)
+- `POST /upload_events` — загрузка календаря событий из `events.xlsx`
+- `GET /events` — все события (сортировка по дате)
 - `GET /events/month/:year/:month` — события за месяц
-- `GET /events/upcoming?days=30` — ближайшие события
+- `GET /events/upcoming?days=30&limit=100` — ближайшие события
 - `GET /events/category/:category` — события по категории
 
-### Vector Operations (pgvector)
-- `POST /vector/:id` — создание/обновление вектора товара
-- `GET /vector/:id` — получение вектора
-- `POST /vector/search` — семантический поиск товаров по вектору
-- `POST /vector/distance` — вычисление расстояния между векторами
+### Vector Operations — pgvector (порт 8080)
+- `POST /vector/:id` — создание/обновление вектора товара (384d)
+- `GET /vector/:id` — получение вектора товара
+- `PUT /vector/:id` — обновление вектора
+- `DELETE /vector/:id` — удаление вектора
+- `POST /vector/search` — семантический поиск товаров (с опциональным `farmer_id`)
+- `POST /vector/events/search` — семантический поиск событий (только будущие)
+- `POST /vector/events/for-product` — поиск релевантных событий для товара по `product_id`
+- `POST /vector/distance` — косинусное + евклидово расстояние между векторами
 
-### Recommendations & Loyalty
-- `GET /recommendations/:id` — персональные рекомендации для клиента
-- `POST /load_orders` — загрузка заказов и начисление бонусов
-- `GET /clients` — список клиентов
-- `GET /client_bonus/:id` — информация о бонусах клиента
+### Recommendations & Loyalty (порт 8080)
+- `GET /recommendations/:id` — персональные рекомендации для клиента (кэш, обновление раз в минуту)
+- `POST /load_orders` — загрузка заказов из `orders.xlsx` и начисление бонусов
+- `GET /clients` — список всех клиентов
+- `GET /client_bonus/:id` — баланс и история бонусных транзакций
 - `POST /spend_bonus/:id` — списание бонусов
 
-### Marketing Agents
-- `POST /agent/run` — запуск маркетингового агента для готовой связки
-- `POST /agent/run_raw` — запуск с произвольными данными
-- `POST /agent/run_dynamic` — запуск с динамическим подбором события
+### ML Service (порт 8000)
+- `POST /extract` — извлечение признаков товара и хозяйства через Groq LLM
+- `POST /embed/product` — векторизация признаков товара (E5, 384d)
+- `POST /embed/event` — векторизация события (с защитой от prompt injection)
+- `POST /embed/text` — быстрая E5-векторизация произвольного текста (без Groq)
+- `POST /pipeline/full` — полный пайплайн: extract → embed
+
+### Marketing Agents (порт 8010)
+- `POST /agents/run` — запуск агента для готовой связки по `match_id` из БД
+- `POST /agents/run_raw` — запуск с произвольными данными (farmer, product, event, match)
+- `POST /agents/run_dynamic` — динамический подбор: `product_id` + диапазон дат → поиск ближайшего события → генерация плана
