@@ -11,7 +11,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from embedder.emb import build_product_payload, e5_embs
+from embedder.emb import build_product_payload, build_event_payload, e5_embs
 from extractor import FeatureExtractor, build_default_extractor
 
 
@@ -190,8 +190,14 @@ def reseed_event_embeddings(conn: psycopg.Connection) -> None:
 
     for idx, row in enumerate(rows, start=1):
         try:
-            text = build_event_text(row)
-            embedding = e5_embs(text, "passage: ")
+            event_name = (row.get("holiday_info") or row.get("category") or "event").strip()
+            about = (row.get("about") or "").strip()
+            food_customs = (row.get("food_customs") or "").strip()
+            desc = f"{about} {food_customs}".strip()
+
+            payload = build_event_payload(event_name, desc)
+            embedding = payload["embedding"]
+
             if len(embedding) != 384:
                 raise ValueError(f"event {row.get('id')} embedding size {len(embedding)}")
 
