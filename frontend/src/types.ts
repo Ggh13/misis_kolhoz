@@ -18,6 +18,10 @@ export type MatchedProduct = {
   quantity: number;
 };
 
+export type ProductSearchMatch = MatchedProduct & {
+  distance: number;
+};
+
 export type MatchInfo = {
   id: string;
   score: number;
@@ -50,6 +54,16 @@ export type EventSearchMatch = {
   about: string;
   food_customs?: string;
   distance: number;
+};
+
+export type EventProductsMatch = {
+  event: EventSearchMatch;
+  products: ProductSearchMatch[];
+};
+
+export type ProductEventsMatch = {
+  product: MatchedProduct;
+  events: EventSearchMatch[];
 };
 
 export type FarmerInfo = {

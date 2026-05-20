@@ -14,6 +14,18 @@ type ProductEmbedding struct {
 	Embedding          []float32 `json:"-"`
 }
 
+type ProductMatch struct {
+	ID        int     `json:"id"`
+	ProductID int     `json:"product_id"`
+	FarmerID  int     `json:"farmer_id"`
+	ProductName string `json:"product_name"`
+	Category  string  `json:"category"`
+	Unit      string  `json:"unit"`
+	Price     float64 `json:"price"`
+	Quantity  int     `json:"quantity"`
+	Distance  float64 `json:"distance"`
+}
+
 type UpsertVectorRequest struct {
 	ProductID int       `json:"product_id" binding:"required"`
 	Embedding []float32 `json:"embedding" binding:"required"`
@@ -37,6 +49,36 @@ type EventEmbedding struct {
 	About      string  `json:"about"`
 	FoodCustoms string `json:"food_customs,omitempty"`
 	Distance   float64 `json:"distance"`
+}
+
+type EventsToProductsRequest struct {
+	Limit      int  `json:"limit" binding:"required,min=1"`
+	FarmerID   int  `json:"farmer_id,omitempty"`
+	FutureOnly bool `json:"future_only"`
+}
+
+type ProductsToEventsRequest struct {
+	Limit      int  `json:"limit" binding:"required,min=1"`
+	FarmerID   int  `json:"farmer_id,omitempty"`
+	FutureOnly bool `json:"future_only"`
+}
+
+type EventProductsMatch struct {
+	Event    EventEmbedding `json:"event"`
+	Products []ProductMatch `json:"products"`
+}
+
+type ProductEventsMatch struct {
+	Product ProductEmbedding `json:"product"`
+	Events  []EventEmbedding `json:"events"`
+}
+
+type EventsToProductsResponse struct {
+	Events []EventProductsMatch `json:"events"`
+}
+
+type ProductsToEventsResponse struct {
+	Products []ProductEventsMatch `json:"products"`
 }
 
 type EventSearchRequest struct {

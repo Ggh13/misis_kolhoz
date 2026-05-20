@@ -44,7 +44,7 @@ export function Analytics({
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-1">Аналитика и маркетинговые кампании</h2>
+        <h2 className="text-2xl font-semibold text-gray-900 mb-1">Маркетинг</h2>
         <p className="text-sm text-gray-600">Генерация маркетингового контента через AI-агентов</p>
       </div>
 

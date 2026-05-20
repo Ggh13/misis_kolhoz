@@ -1,4 +1,4 @@
-import { Search, User, X, Store, MapPin, Package } from 'lucide-react';
+import { Search, User, X, MapPin, Store, Package } from 'lucide-react';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import type { FarmerInfo, MatchedProduct } from '../types';
 
@@ -14,7 +14,7 @@ interface FarmerSearchResult {
   region: string;
 }
 
-export function DataIngestion({ selectedFarmer, onSelectFarmer, farmerProducts }: DataIngestionProps) {
+export function Profile({ selectedFarmer, onSelectFarmer, farmerProducts }: DataIngestionProps) {
   const [farmerInput, setFarmerInput] = useState('');
   const [searchResults, setSearchResults] = useState<FarmerSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -93,14 +93,14 @@ export function DataIngestion({ selectedFarmer, onSelectFarmer, farmerProducts }
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-1">Фермерское хозяйство</h2>
-        <p className="text-sm text-gray-600">Найдите фермера по названию и выберите для работы</p>
+        <h2 className="text-2xl font-bold text-gray-900 mb-1">Ваш профиль</h2>
+        <p className="text-sm text-gray-600">Введите название вашего хозяйства, чтобы начать работу с платформой</p>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6" ref={searchRef}>
         <div className="flex items-center gap-2 mb-3">
           <User className="w-5 h-5 text-green-600" />
-          <h3 className="font-semibold text-sm text-gray-900">Поиск фермера</h3>
+          <h3 className="font-semibold text-sm text-gray-900">Поиск вашего хозяйства</h3>
         </div>
 
         {selectedFarmer ? (
@@ -110,23 +110,23 @@ export function DataIngestion({ selectedFarmer, onSelectFarmer, farmerProducts }
                 <User className="w-5 h-5 text-green-700" />
               </div>
               <div>
-                <p className="font-semibold text-sm text-green-800">{selectedFarmer.name || `Фермер #${selectedFarmer.id}`}</p>
+                <p className="font-semibold text-sm text-green-800">{selectedFarmer.name || `Хозяйство #${selectedFarmer.id}`}</p>
                 {selectedFarmer.region && (
                   <p className="text-xs text-green-600">{selectedFarmer.region}</p>
                 )}
               </div>
             </div>
             <button onClick={handleClear} className="text-xs text-red-600 hover:text-red-800 flex items-center gap-1">
-              <X className="w-3 h-3" /> Сменить
+              <X className="w-3 h-3" /> Выйти
             </button>
           </div>
         ) : (
             <div className="relative">
                 <div className="flex gap-2">
                   <div className="relative flex-1">
-                    <input
+                      <input
                       type="text"
-                      placeholder="Введите название фермерского хозяйства..."
+                      placeholder="Введите название вашего фермерского хозяйства..."
                       value={farmerInput}
                       onChange={handleInputChange}
                       onKeyDown={handleKeyDown}
@@ -200,7 +200,7 @@ export function DataIngestion({ selectedFarmer, onSelectFarmer, farmerProducts }
             <div className="bg-gradient-to-br from-amber-500 to-amber-700 rounded-xl p-5 text-white">
               <User className="w-6 h-6 mb-3 opacity-80" />
               <p className="text-sm font-semibold truncate">{selectedFarmer.name || `ID ${selectedFarmer.id}`}</p>
-              <p className="text-xs text-amber-100 mt-1">Фермер</p>
+              <p className="text-xs text-amber-100 mt-1">Хозяйство</p>
             </div>
           </div>
 
@@ -212,13 +212,11 @@ export function DataIngestion({ selectedFarmer, onSelectFarmer, farmerProducts }
               <div className="divide-y divide-gray-50">
                 {[
                   { label: 'Название', key: 'name' },
+                  { label: 'Описание', key: 'farmer_description' },
                   { label: 'Регион', key: 'region' },
-                  { label: 'Адрес', key: 'address' },
-                  { label: 'Телефон', key: 'phone' },
-                  { label: 'Email', key: 'email' },
                 ].map(({ label, key }) => {
                   const val = farmerDetails[key];
-                  if (val == null) return null;
+                  if (!val) return null;
                   return (
                     <div key={key} className="flex items-center px-5 py-3">
                       <span className="text-xs text-gray-500 w-32 shrink-0">{label}</span>

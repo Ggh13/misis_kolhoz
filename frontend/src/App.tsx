@@ -1,16 +1,20 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
-import { DataIngestion } from './components/DataIngestion';
+import { Profile } from './components/Profile';
 import { EventEngine } from './components/EventEngine';
 import { SemanticMatcher } from './components/SemanticMatcher';
 import { ProductsView } from './components/ProductsView';
 import { Analytics } from './components/Analytics';
 import { ParticleBackground } from './components/ParticleBackground';
-import type { EventItem, MatchedProduct, FarmerInfo, EventSearchMatch, WorkflowState } from './types';
+import type { EventItem, MatchedProduct, FarmerInfo, EventSearchMatch, EventProductsMatch, ProductEventsMatch, WorkflowState } from './types';
+
+const RECOMMENDED_EVENT_SCORE_THRESHOLD = 0.85;
+const EVENT_PRODUCT_SCORE_THRESHOLD = 0.85;
+const EVENT_PRODUCT_MATCH_LIMIT = 60;
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('ingestion');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedEventIds, setSelectedEventIds] = useState<number[]>([]);
   const [selectedEventsById, setSelectedEventsById] = useState<Record<number, EventItem>>({});
@@ -23,34 +27,53 @@ export default function App() {
   const [farmerProductsLoading, setFarmerProductsLoading] = useState(false);
   const [recommendedEvents, setRecommendedEvents] = useState<EventSearchMatch[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [matcherLoading, setMatcherLoading] = useState(false);
+  const [eventMatches, setEventMatches] = useState<EventProductsMatch[]>([]);
 
   const [eventsError, setEventsError] = useState('');
 
   const handleFindEvents = useCallback(async () => {
-    if (farmerProducts.length === 0 || !selectedFarmer) return;
-    const firstProduct = farmerProducts[0];
-    if (!firstProduct) return;
+    if (!selectedFarmer) return;
+
     setEventsLoading(true);
     setEventsError('');
     try {
-      const res = await fetch('/vector/events/for-product', {
+      const res = await fetch('/vector/match/products-to-events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product_id: firstProduct.product_id, limit: 20 }),
+        body: JSON.stringify({ limit: 200, farmer_id: selectedFarmer.id, future_only: true }),
       });
       if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(text || `HTTP ${res.status}`);
+        throw new Error('match request failed');
       }
       const data = await res.json();
-      setRecommendedEvents(data.events ?? []);
+      const productMatches: ProductEventsMatch[] = data.products ?? [];
+
+      const eventMap = new Map<number, EventSearchMatch>();
+      for (const match of productMatches) {
+        for (const ev of match.events ?? []) {
+          if (!eventMap.has(ev.id) || ev.distance < eventMap.get(ev.id)!.distance) {
+            eventMap.set(ev.id, ev);
+          }
+        }
+      }
+
+      const sortedEvents = Array.from(eventMap.values()).sort((a, b) => {
+        const dateA = new Date(a.event_date).getTime();
+        const dateB = new Date(b.event_date).getTime();
+        if (!Number.isNaN(dateA) && !Number.isNaN(dateB)) return dateA - dateB;
+        return a.event_date.localeCompare(b.event_date);
+      });
+      setRecommendedEvents(
+        sortedEvents.filter((e) => 1 - e.distance >= RECOMMENDED_EVENT_SCORE_THRESHOLD),
+      );
     } catch (err) {
       console.error('Failed to find events:', err);
       setEventsError(`Не удалось подобрать события: ${err instanceof Error ? err.message : 'ошибка'}`);
     } finally {
       setEventsLoading(false);
     }
-  }, [farmerProducts, selectedFarmer]);
+  }, [selectedFarmer]);
 
   const handleSelectFarmer = useCallback(async (farmer: FarmerInfo | null) => {
     setSelectedFarmer(farmer);
@@ -59,6 +82,7 @@ export default function App() {
     setEventResults({});
     setSelectedMatch(null);
     setCampaignResult(null);
+    setRecommendedEvents([]);
 
     if (farmer) {
       setFarmerProductsLoading(true);
@@ -87,6 +111,52 @@ export default function App() {
       setFarmerProducts([]);
     }
   }, []);
+
+  const fetchEventMatches = useCallback(async () => {
+    if (!selectedFarmer || recommendedEvents.length === 0) {
+      setEventMatches([]);
+      return;
+    }
+
+    setMatcherLoading(true);
+    try {
+      const res = await fetch('/vector/match/events-to-products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: EVENT_PRODUCT_MATCH_LIMIT, farmer_id: selectedFarmer.id, future_only: true }),
+      });
+      if (!res.ok) {
+        throw new Error('match request failed');
+      }
+      const data = await res.json();
+      const matches = (Array.isArray(data.events) ? data.events : []) as EventProductsMatch[];
+      const recommendedIds = new Set(recommendedEvents.map((e) => e.id));
+      const filtered = matches
+        .filter((m) => recommendedIds.has(m.event?.id))
+        .map((m) => ({
+          ...m,
+          products: (m.products ?? []).filter(
+            (p) => 1 - p.distance >= EVENT_PRODUCT_SCORE_THRESHOLD,
+          ),
+        }))
+        .filter((m) => (m.products ?? []).length > 0);
+      const recommendedOrder = new Map(recommendedEvents.map((e, index) => [e.id, index]));
+      const ordered = filtered.sort(
+        (a, b) => (recommendedOrder.get(a.event.id) ?? 0) - (recommendedOrder.get(b.event.id) ?? 0),
+      );
+      setEventMatches(ordered);
+    } catch (err) {
+      console.error('Failed to fetch event matches:', err);
+      setEventMatches([]);
+    } finally {
+      setMatcherLoading(false);
+    }
+  }, [selectedFarmer, recommendedEvents]);
+
+  useEffect(() => {
+    if (activeTab !== 'matcher') return;
+    void fetchEventMatches();
+  }, [activeTab, fetchEventMatches]);
 
   const farmerFilteredResults = useMemo(() => {
     if (!selectedFarmer) return eventResults;
@@ -202,7 +272,7 @@ export default function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard workflow={workflow} />;
-      case 'ingestion': return <DataIngestion selectedFarmer={selectedFarmer} onSelectFarmer={handleSelectFarmer} farmerProducts={farmerProducts} />;
+      case 'ingestion': return <Profile selectedFarmer={selectedFarmer} onSelectFarmer={handleSelectFarmer} farmerProducts={farmerProducts} />;
       case 'events':
         return (
           <EventEngine
@@ -218,10 +288,9 @@ export default function App() {
       case 'matcher':
         return (
           <SemanticMatcher
-            selectedEvents={selectedEventIds.map((id) => selectedEventsById[id]).filter((e): e is EventItem => e !== undefined)}
-            eventResults={farmerFilteredResults}
+            matches={eventMatches}
             selectedMatch={selectedMatch}
-            isLoading={isLoading}
+            isLoading={matcherLoading}
           />
         );
       case 'products':
@@ -248,7 +317,7 @@ export default function App() {
   };
 
   return (
-    <div className="size-full flex bg-gray-50 relative min-h-screen">
+    <div className="flex h-screen bg-gray-50 relative overflow-hidden">
       <ParticleBackground />
       <Sidebar
         activeTab={activeTab}
@@ -257,7 +326,7 @@ export default function App() {
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         selectedFarmer={selectedFarmer}
       />
-      <div className="flex-1 overflow-auto relative z-10">{renderContent()}</div>
+      <div className="flex-1 overflow-y-auto relative z-10">{renderContent()}</div>
     </div>
   );
 }

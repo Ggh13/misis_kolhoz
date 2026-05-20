@@ -264,6 +264,147 @@ func (r *VectorRepository) SearchEvents(ctx context.Context, embedding []float32
 	return results, nil
 }
 
+func (r *VectorRepository) MatchEventsToProducts(ctx context.Context, limit int, farmerID int, futureOnly bool) ([]model.EventProductsMatch, error) {
+	tx, err := r.pgDB.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("vector begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, "SET LOCAL ivfflat.probes = 100")
+	if err != nil {
+		return nil, fmt.Errorf("vector set probes: %w", err)
+	}
+
+	query := `
+		SELECT e.id, e.event_date, e.holiday_info, e.category, e.about, e.food_customs,
+			p.id, p.product_id, p.farmer_id, p.product_name, p.category, p.unit, p.price, p.quantity,
+			(p.embedding <=> e.embedding) AS distance
+		FROM event_embeddings e
+		CROSS JOIN LATERAL (
+			SELECT id, product_id, farmer_id, product_name, category, unit, price, quantity, embedding
+			FROM product_embeddings
+			WHERE ($2 = 0 OR farmer_id = $2)
+			ORDER BY embedding <=> e.embedding
+			LIMIT $1
+		) p
+		WHERE ($3 = false OR e.event_date::date >= CURRENT_DATE)
+		ORDER BY e.id, distance`
+
+	rows, err := tx.Query(ctx, query, limit, farmerID, futureOnly)
+	if err != nil {
+		return nil, fmt.Errorf("vector match events to products: %w", err)
+	}
+	defer rows.Close()
+
+	resultMap := make(map[int]*model.EventProductsMatch)
+	order := make([]int, 0)
+	for rows.Next() {
+		var event model.EventEmbedding
+		var product model.ProductMatch
+		if err := rows.Scan(
+			&event.ID, &event.EventDate, &event.HolidayInfo, &event.Category, &event.About, &event.FoodCustoms,
+			&product.ID, &product.ProductID, &product.FarmerID, &product.ProductName, &product.Category,
+			&product.Unit, &product.Price, &product.Quantity, &product.Distance,
+		); err != nil {
+			return nil, fmt.Errorf("vector match events scan: %w", err)
+		}
+
+		bucket, ok := resultMap[event.ID]
+		if !ok {
+			resultMap[event.ID] = &model.EventProductsMatch{Event: event, Products: []model.ProductMatch{product}}
+			order = append(order, event.ID)
+			continue
+		}
+		bucket.Products = append(bucket.Products, product)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("vector match events rows: %w", err)
+	}
+
+	result := make([]model.EventProductsMatch, 0, len(order))
+	for _, id := range order {
+		result = append(result, *resultMap[id])
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("vector match events commit: %w", err)
+	}
+
+	return result, nil
+}
+
+func (r *VectorRepository) MatchProductsToEvents(ctx context.Context, limit int, farmerID int, futureOnly bool) ([]model.ProductEventsMatch, error) {
+	tx, err := r.pgDB.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("vector begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, "SET LOCAL ivfflat.probes = 100")
+	if err != nil {
+		return nil, fmt.Errorf("vector set probes: %w", err)
+	}
+
+	query := `
+		SELECT p.id, p.product_id, p.farmer_id, p.product_name, p.category, p.unit, p.price, p.quantity,
+			e.id, e.event_date, e.holiday_info, e.category, e.about, e.food_customs,
+			(e.embedding <=> p.embedding) AS distance
+		FROM product_embeddings p
+		CROSS JOIN LATERAL (
+			SELECT id, event_date, holiday_info, category, about, food_customs, embedding
+			FROM event_embeddings
+			WHERE ($3 = false OR event_date::date >= CURRENT_DATE)
+			ORDER BY embedding <=> p.embedding
+			LIMIT $1
+		) e
+		WHERE ($2 = 0 OR p.farmer_id = $2)
+		ORDER BY p.product_id, distance`
+
+	rows, err := tx.Query(ctx, query, limit, farmerID, futureOnly)
+	if err != nil {
+		return nil, fmt.Errorf("vector match products to events: %w", err)
+	}
+	defer rows.Close()
+
+	resultMap := make(map[int]*model.ProductEventsMatch)
+	order := make([]int, 0)
+	for rows.Next() {
+		var product model.ProductEmbedding
+		var event model.EventEmbedding
+		if err := rows.Scan(
+			&product.ID, &product.ProductID, &product.FarmerID, &product.ProductName, &product.Category,
+			&product.Unit, &product.Price, &product.Quantity,
+			&event.ID, &event.EventDate, &event.HolidayInfo, &event.Category, &event.About, &event.FoodCustoms,
+			&event.Distance,
+		); err != nil {
+			return nil, fmt.Errorf("vector match products scan: %w", err)
+		}
+
+		bucket, ok := resultMap[product.ProductID]
+		if !ok {
+			resultMap[product.ProductID] = &model.ProductEventsMatch{Product: product, Events: []model.EventEmbedding{event}}
+			order = append(order, product.ProductID)
+			continue
+		}
+		bucket.Events = append(bucket.Events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("vector match products rows: %w", err)
+	}
+
+	result := make([]model.ProductEventsMatch, 0, len(order))
+	for _, id := range order {
+		result = append(result, *resultMap[id])
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("vector match products commit: %w", err)
+	}
+
+	return result, nil
+}
+
 func formatVectorForSQL(emb []float32) string {
 	parts := make([]string, len(emb))
 	for i, v := range emb {

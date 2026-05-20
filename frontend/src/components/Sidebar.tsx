@@ -23,12 +23,12 @@ interface SidebarProps {
 
 export function Sidebar({ activeTab, onTabChange, collapsed, onToggleCollapse, selectedFarmer }: SidebarProps) {
   const menuItems = [
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Дашборд' },
-    { id: 'ingestion', icon: Database, label: 'Загрузка данных' },
-    { id: 'events', icon: Calendar, label: 'События и тренды' },
-    { id: 'matcher', icon: Sparkles, label: 'Сопоставление' },
+    { id: 'ingestion', icon: Database, label: 'Профиль' },
+    { id: 'events', icon: Calendar, label: 'События' },
+    { id: 'matcher', icon: Sparkles, label: 'Мэтчи' },
     { id: 'products', icon: Package, label: 'Товары' },
-    { id: 'analytics', icon: TrendingUp, label: 'Аналитика' },
+    { id: 'analytics', icon: TrendingUp, label: 'Маркетинг' },
+    { id: 'dashboard', icon: LayoutDashboard, label: 'Дашборд' },
   ];
 
   return (

@@ -73,6 +73,20 @@ func (s *VectorService) SearchEvents(ctx context.Context, embedding []float32, l
 	return s.repo.SearchEvents(ctx, embedding, limit)
 }
 
+func (s *VectorService) MatchEventsToProducts(ctx context.Context, limit int, farmerID int, futureOnly bool) ([]model.EventProductsMatch, error) {
+	if limit <= 0 {
+		return nil, errors.New("limit must be positive")
+	}
+	return s.repo.MatchEventsToProducts(ctx, limit, farmerID, futureOnly)
+}
+
+func (s *VectorService) MatchProductsToEvents(ctx context.Context, limit int, farmerID int, futureOnly bool) ([]model.ProductEventsMatch, error) {
+	if limit <= 0 {
+		return nil, errors.New("limit must be positive")
+	}
+	return s.repo.MatchProductsToEvents(ctx, limit, farmerID, futureOnly)
+}
+
 func (s *VectorService) CalculateDistance(vecA, vecB []float32) (cosine, euclidean float64) {
 	if len(vecA) != len(vecB) || len(vecA) == 0 {
 		return 0, 0

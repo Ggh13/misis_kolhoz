@@ -42,6 +42,9 @@ export function EventEngine({
   eventsError,
   farmerName,
 }: EventEngineProps) {
+  const maxRecommendedShown = 12;
+  const visibleRecommendedEvents = recommendedEvents.slice(0, maxRecommendedShown);
+
   const [allEvents, setAllEvents] = useState<EventItem[]>([]);
   const [upcoming, setUpcoming] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -199,11 +202,11 @@ export function EventEngine({
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="w-4 h-4 text-purple-600" />
             <h3 className="font-semibold text-sm">
-              Рекомендованные события ({recommendedEvents.length})
+              Рекомендованные события ({visibleRecommendedEvents.length})
             </h3>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-            {recommendedEvents.slice(0, 12).map((e) => {
+            {visibleRecommendedEvents.map((e) => {
               const selected = isSelected(e.id);
               const ev = allEvents.find((a) => a.id === e.id);
               const display: EventItem = ev ?? {
