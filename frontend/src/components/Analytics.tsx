@@ -75,7 +75,7 @@ export function Analytics({
     <div className="p-6">
       <div className="mb-6">
         <h2 className="text-2xl font-semibold text-gray-900 mb-1">Маркетинг</h2>
-        <p className="text-sm text-gray-600">Генерация маркетингового контента через AI-агентов</p>
+        <p className="text-sm text-gray-600">Генерация маркетингового контента</p>
       </div>
 
       {/* Stats cards */}
@@ -149,7 +149,7 @@ export function Analytics({
             className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 rounded-xl font-medium text-sm hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
             <Send className="w-4 h-4" />
-            Создать маркетинговую кампанию (AI Agent)
+            Создать маркетинговую кампанию
           </button>
         </div>
       )}
@@ -169,10 +169,10 @@ export function Analytics({
             <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
             <div>
               <p className="text-sm font-medium text-blue-800">
-                AI-агент генерирует маркетинговый план…
+                Генерируем маркетинговый план…
               </p>
               <p className="text-xs text-blue-600">
-                Стратег → SMM → Валидация (итерации до одобрения)
+                Подготовка плана и контента
               </p>
             </div>
           </div>

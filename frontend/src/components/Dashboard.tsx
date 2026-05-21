@@ -12,7 +12,7 @@ export function Dashboard({ workflow }: DashboardProps) {
 
   const stats = [
     { label: 'Выбрано событий', value: selectedEventIds.length > 0 ? String(selectedEventIds.length) : '—', change: 'для анализа', positive: selectedEventIds.length > 0 },
-    { label: 'Найдено товаров', value: matchedProducts.length > 0 ? String(matchedProducts.length) : '—', change: 'по векторам', positive: matchedProducts.length > 0 },
+    { label: 'Найдено товаров', value: matchedProducts.length > 0 ? String(matchedProducts.length) : '—', change: 'подбор', positive: matchedProducts.length > 0 },
     { label: 'Кампания', value: campaignResult ? (campaignResult.plan_approved ? '✓ Готова' : 'Draft') : '—', change: campaignResult ? (campaignResult.retry_count ?? 0) + ' итераций' : 'Нет данных', positive: !!campaignResult?.plan_approved },
   ];
 
@@ -20,7 +20,7 @@ export function Dashboard({ workflow }: DashboardProps) {
     <div className="p-6">
       <div className="mb-6">
         <h2 className="text-2xl font-semibold text-gray-900 mb-1">Дашборд</h2>
-        <p className="text-sm text-gray-600">Статус ML-пайплайна</p>
+        <p className="text-sm text-gray-600">Статус подбора</p>
       </div>
 
       <div className="grid grid-cols-3 gap-4 mb-6">
@@ -39,13 +39,13 @@ export function Dashboard({ workflow }: DashboardProps) {
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center gap-2 mb-4">
             <Rocket className="w-5 h-5 text-green-600" />
-            <h3 className="text-base font-semibold text-gray-900">ML-пайплайн</h3>
+            <h3 className="text-base font-semibold text-gray-900">Подбор</h3>
             {isLoading && <span className="ml-auto flex items-center gap-1 text-xs text-blue-600"><span className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />Работает...</span>}
           </div>
           <div className="space-y-2 text-sm">
             {[
               ['Выбор событий', hasEvents],
-              ['Embed + Vector Search', matchedProducts.length > 0],
+              ['Подбор товаров', matchedProducts.length > 0],
               ['Выбор товара', !!selectedMatch],
               ['Генерация кампании', !!campaignResult],
             ].map(([label, done], i) => (

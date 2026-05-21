@@ -44,7 +44,7 @@ export function SemanticMatcher({
     <div className="p-6">
       <div className="mb-6">
         <h2 className="text-2xl font-semibold text-gray-900 mb-1">Мэтчи</h2>
-        <p className="text-sm text-gray-600">События → поиск по векторам → подбор лучших товаров</p>
+        <p className="text-sm text-gray-600">События → подбор лучших товаров</p>
       </div>
 
       {matches.length === 0 && !isLoading && (
@@ -63,7 +63,7 @@ export function SemanticMatcher({
             <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
             <div>
               <p className="text-sm font-medium text-blue-800">Выполняется анализ…</p>
-              <p className="text-xs text-blue-600">Эмбеддинг событий → векторный поиск товаров</p>
+              <p className="text-xs text-blue-600">Собираем рекомендации по товарам</p>
             </div>
           </div>
         </div>
@@ -173,7 +173,7 @@ export function SemanticMatcher({
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm text-gray-500 text-center py-12 bg-white rounded-xl border border-gray-200">
           <Package className="w-10 h-10 text-gray-200 mx-auto mb-3" />
           <p className="font-medium text-gray-600">Результаты появятся здесь</p>
-          <p className="text-xs text-gray-400 mt-1">После завершения векторного поиска для рекомендованных событий</p>
+          <p className="text-xs text-gray-400 mt-1">После завершения подбора для рекомендованных событий</p>
         </motion.div>
       )}
     </div>

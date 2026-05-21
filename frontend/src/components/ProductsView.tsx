@@ -34,7 +34,7 @@ export function ProductsView({
             ? 'Загрузка товаров...'
             : hasFarmerProducts
             ? `Каталог товаров фермера · ${farmerProducts.length} позиций`
-            : 'Выберите фермера на вкладке «Загрузка данных»'}
+            : 'Выберите фермера на вкладке «Профиль»'}
         </p>
       </div>
 
@@ -55,7 +55,7 @@ export function ProductsView({
                 >
                   <Sparkles className="w-4 h-4 text-purple-600 shrink-0" />
                   <p className="text-xs text-purple-700">
-                    <span className="font-medium">{matchedProducts.length}</span> товаров подходят по векторному поиску к выбранным событиям — они отмечены иконкой <Sparkles className="w-3 h-3 inline text-purple-500" />
+                    <span className="font-medium">{matchedProducts.length}</span> товаров подходят к выбранным событиям — они отмечены иконкой <Sparkles className="w-3 h-3 inline text-purple-500" />
                   </p>
                 </motion.div>
               )}
