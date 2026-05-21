@@ -23,6 +23,7 @@ class MarketingState(TypedDict):
     match: Dict[str, Any]
     plan: Dict[str, Any]
     content: Dict[str, Any]
+    image_prompt: str
     validator_notes: List[str]
     plan_approved: bool
     retry_count: int
@@ -39,6 +40,8 @@ def strategist_node(state: MarketingState) -> MarketingState:
         "Ты стратег-маркетолог. Возвращай ТОЛЬКО валидный JSON и пиши по-русски. "
         "Сформируй план для связки товар+событие: даты, механика, гипотеза, "
         "целевая аудитория. "
+        "Добавь блок promotions — рекомендации фермеру, какие акции и на какие товары запустить. "
+        "promotions: массив объектов с полями product, promo, reason. "
         "Запланируй прогрев за 2-3 дня до event_start, если возможно. "
         "Максимизируй продажи через логичные ассоциации между товаром и событием."
     )
@@ -147,18 +150,71 @@ def validator_node(state: MarketingState) -> MarketingState:
     }
 
 
+def image_prompt_node(state: MarketingState) -> MarketingState:
+    llm = _build_llm()
+
+    system = (
+        "Ты креативный продюсер фуд-фото. Возвращай ТОЛЬКО валидный JSON и пиши по-русски. "
+        "Ключ: image_prompt. "
+        "Формула: 'Фотореалистичное рекламное фото [продукт] для [повод/праздник]. "
+        "[Сцена]. [Детали продукта]. Атмосфера [настроение]. Натуральный свет, "
+        "эстетичная композиция, премиальный food photography стиль. Без текста, "
+        "без логотипов, без надписей, без людей, без водяных знаков.' "
+        "Если возможно, добавь детали из plan и content, но не добавляй бренды."
+    )
+    user = json.dumps(
+        {
+            "farmer": state.get("farmer", {}),
+            "product": state.get("product", {}),
+            "event": state.get("event", {}),
+            "plan": state.get("plan", {}),
+            "content": state.get("content", {}),
+        },
+        ensure_ascii=False,
+    )
+
+    response = llm.invoke(
+        [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ]
+    )
+
+    try:
+        data = json.loads(response.content)
+        image_prompt = data.get("image_prompt")
+    except json.JSONDecodeError:
+        image_prompt = None
+
+    if not image_prompt:
+        image_prompt = (
+            "Фотореалистичное рекламное фото натурального продукта для сезонного праздника. "
+            "Чистая сцена с продуктом на деревянном столе, рядом свежие ингредиенты. "
+            "Мягкий утренний свет, уютная атмосфера. Натуральный свет, эстетичная композиция, "
+            "премиальный food photography стиль. Без текста, без логотипов, без надписей, "
+            "без людей, без водяных знаков."
+        )
+
+    return {
+        **state,
+        "image_prompt": image_prompt,
+    }
+
+
 def build_marketing_graph():
     graph = StateGraph(MarketingState)
     graph.add_node("strategist", strategist_node)
     graph.add_node("smm", smm_node)
     graph.add_node("validator", validator_node)
+    graph.add_node("image_prompt", image_prompt_node)
 
     graph.set_entry_point("strategist")
     graph.add_edge("strategist", "smm")
     graph.add_edge("smm", "validator")
+    graph.add_edge("image_prompt", END)
 
     def _route(state: MarketingState) -> str:
-        return END if state.get("plan_approved") else "smm"
+        return "image_prompt" if state.get("plan_approved") else "smm"
 
-    graph.add_conditional_edges("validator", _route, {"smm": "smm", END: END})
+    graph.add_conditional_edges("validator", _route, {"smm": "smm", "image_prompt": "image_prompt"})
     return graph.compile()

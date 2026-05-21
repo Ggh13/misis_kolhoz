@@ -29,6 +29,9 @@ export default function App() {
   const [eventsLoading, setEventsLoading] = useState(false);
   const [matcherLoading, setMatcherLoading] = useState(false);
   const [eventMatches, setEventMatches] = useState<EventProductsMatch[]>([]);
+  const [imageExample, setImageExample] = useState<{ url: string; prompt: string } | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
+  const [imageError, setImageError] = useState('');
 
   const [eventsError, setEventsError] = useState('');
 
@@ -82,6 +85,8 @@ export default function App() {
     setEventResults({});
     setSelectedMatch(null);
     setCampaignResult(null);
+    setImageExample(null);
+    setImageError('');
     setRecommendedEvents([]);
 
     if (farmer) {
@@ -254,6 +259,8 @@ export default function App() {
     if (!firstEvent) return;
     setIsLoading(true);
     setCampaignResult(null);
+    setImageExample(null);
+    setImageError('');
     try {
       const res = await fetch('/agents/run_dynamic', {
         method: 'POST',
@@ -268,6 +275,37 @@ export default function App() {
       setIsLoading(false);
     }
   }, [selectedEventIds, selectedEventsById]);
+
+  const handleGenerateImage = useCallback(async () => {
+    if (!campaignResult?.image_prompt) {
+      setImageError('Нет промта для генерации изображения');
+      return;
+    }
+    setImageLoading(true);
+    setImageError('');
+    try {
+      const res = await fetch('/agents/generate_image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: campaignResult.image_prompt }),
+      });
+      if (!res.ok) {
+        throw new Error('image request failed');
+      }
+      const data = await res.json();
+      if (data?.image_url) {
+        setImageExample({ url: data.image_url, prompt: data.prompt ?? campaignResult.image_prompt });
+      } else {
+        throw new Error('image url missing');
+      }
+    } catch (err) {
+      console.error('Failed to generate image:', err);
+      setImageError('Не удалось сгенерировать изображение');
+      setImageExample(null);
+    } finally {
+      setImageLoading(false);
+    }
+  }, [campaignResult]);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -310,6 +348,10 @@ export default function App() {
             selectedMatch={selectedMatch}
             isLoading={isLoading}
             onGenerateCampaign={handleGenerateCampaign}
+            imageExample={imageExample}
+            imageLoading={imageLoading}
+            imageError={imageError}
+            onGenerateImage={handleGenerateImage}
           />
         );
       default: return <Dashboard workflow={workflow} />;

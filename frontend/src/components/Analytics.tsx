@@ -11,6 +11,10 @@ interface AnalyticsProps {
   } | null;
   isLoading: boolean;
   onGenerateCampaign: (productId: number) => void;
+  imageExample: { url: string; prompt: string } | null;
+  imageLoading: boolean;
+  imageError: string;
+  onGenerateImage: () => void;
 }
 
 export function Analytics({
@@ -18,6 +22,10 @@ export function Analytics({
   selectedMatch,
   isLoading,
   onGenerateCampaign,
+  imageExample,
+  imageLoading,
+  imageError,
+  onGenerateImage,
 }: AnalyticsProps) {
   const [error, setError] = useState('');
 
@@ -40,6 +48,28 @@ export function Analytics({
       year: 'numeric',
     }).format(parsed);
   }
+
+  const formatPlanDates = (dates: unknown) => {
+    if (!dates) return null;
+    if (typeof dates === 'string' || typeof dates === 'number') return String(dates);
+    if (typeof dates !== 'object') return null;
+
+    const record = dates as Record<string, string | number>;
+    const mapped = [
+      { key: 'event_start', label: 'Событие', value: record.event_start },
+      { key: 'pre_event_start', label: 'Прогрев старт', value: record.pre_event_start },
+      { key: 'pre_event_end', label: 'Прогрев финиш', value: record.pre_event_end },
+      { key: 'progrev_start', label: 'Прогрев старт', value: record.progrev_start },
+      { key: 'progrev_end', label: 'Прогрев финиш', value: record.progrev_end },
+    ]
+      .filter((item) => item.value)
+      .map((item) => {
+        const raw = String(item.value);
+        return `${item.label}: ${formatRuDate(raw)}`;
+      });
+
+    return mapped.length > 0 ? mapped.join(' · ') : null;
+  };
 
   return (
     <div className="p-6">
@@ -179,7 +209,10 @@ export function Analytics({
                   <p><span className="font-medium text-gray-700">Гипотеза:</span> {campaignResult.plan.hypothesis}</p>
                 )}
                 {campaignResult.plan.dates && (
-                  <p><span className="font-medium text-gray-700">Даты:</span> {campaignResult.plan.dates}</p>
+                  <p>
+                    <span className="font-medium text-gray-700">Даты:</span>{' '}
+                    {formatPlanDates(campaignResult.plan.dates) ?? '—'}
+                  </p>
                 )}
                 {campaignResult.plan.target_audience && (
                   <p><span className="font-medium text-gray-700">Целевая аудитория:</span> {campaignResult.plan.target_audience}</p>
@@ -187,6 +220,31 @@ export function Analytics({
                 {campaignResult.plan.warming && (
                   <p><span className="font-medium text-gray-700">Прогрев:</span> {campaignResult.plan.warming}</p>
                 )}
+              </div>
+            </div>
+          )}
+
+          {campaignResult.plan?.promotions && (
+            <div className="bg-white rounded-xl border border-gray-200 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Target className="w-5 h-5 text-green-600" />
+                <h3 className="font-semibold text-sm">Рекомендации по акциям</h3>
+              </div>
+              <div className="space-y-3 text-sm">
+                {campaignResult.plan.promotions.map((item: any, i: number) => {
+                  const product = typeof item === 'string' ? '' : item.product;
+                  const promo = typeof item === 'string' ? item : item.promo;
+                  const reason = typeof item === 'string' ? '' : item.reason;
+                  return (
+                    <div key={i} className="bg-gray-50 rounded-lg p-3">
+                      {product && <p className="text-gray-900 font-medium">{product}</p>}
+                      <p className="text-gray-700">{promo}</p>
+                      {reason && (
+                        <p className="text-xs text-gray-500 mt-1">{reason}</p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -226,25 +284,35 @@ export function Analytics({
             </div>
           )}
 
-          {/* Validator notes */}
-          {campaignResult.validator_notes && campaignResult.validator_notes.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <AlertCircle className="w-4 h-4 text-amber-600" />
-                <h3 className="font-semibold text-sm text-amber-800">Замечания валидатора</h3>
-              </div>
-              <ul className="list-disc list-inside space-y-1 text-sm text-amber-700">
-                {campaignResult.validator_notes.map((note, i) => (
-                  <li key={i}>{note}</li>
-                ))}
-              </ul>
-              {campaignResult.retry_count !== undefined && (
-                <p className="text-xs text-amber-600 mt-2">
-                  Попытка: {campaignResult.retry_count}
-                </p>
-              )}
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Send className="w-5 h-5 text-purple-600" />
+              <h3 className="font-semibold text-sm">Пример рекламного фото</h3>
             </div>
-          )}
+            <p className="text-xs text-gray-500 mb-3">Это пример, как может выглядеть</p>
+            <button
+              onClick={onGenerateImage}
+              disabled={imageLoading || !campaignResult.image_prompt}
+              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2.5 rounded-lg font-medium text-sm hover:from-purple-700 hover:to-indigo-700 transition-all disabled:opacity-50"
+            >
+              {imageLoading ? 'Генерация…' : 'Сгенерировать рекламное фото'}
+            </button>
+            {imageError && (
+              <p className="text-xs text-red-600 mt-2">{imageError}</p>
+            )}
+            {imageExample && (
+              <div className="mt-4">
+                <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                  <img
+                    src={imageExample.url}
+                    alt="Пример рекламного фото"
+                    className="w-full max-h-[60vh] object-contain"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-400 mt-2">Промт: {imageExample.prompt}</p>
+              </div>
+            )}
+          </div>
 
         </motion.div>
       )}

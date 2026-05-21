@@ -9,7 +9,8 @@ RUN pip install --no-cache-dir \
     langchain-openai \
     "psycopg[binary]" \
     pgvector \
-    python-dotenv
+    python-dotenv \
+    requests
 
 COPY agents/ /app/agents/
 

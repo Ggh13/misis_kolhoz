@@ -41,6 +41,7 @@ export type CampaignResult = {
   match?: { id?: string; score?: number };
   plan?: Record<string, any>;
   content?: CampaignContent;
+  image_prompt?: string;
   validator_notes?: string[];
   plan_approved?: boolean;
   retry_count?: number;

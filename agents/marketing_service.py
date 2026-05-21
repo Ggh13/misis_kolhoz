@@ -1,8 +1,10 @@
 import math
 import os
+import random
 from typing import Any, Dict
 
 import psycopg
+import requests
 from pgvector.psycopg import register_vector
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -37,6 +39,10 @@ class DynamicRunRequest(BaseModel):
     top_k: int = 1
 
 
+class ImageRequest(BaseModel):
+    prompt: str
+
+
 def _sanitize(obj: Any) -> Any:
     if isinstance(obj, float):
         if math.isnan(obj) or math.isinf(obj):
@@ -54,6 +60,17 @@ def _get_db_url() -> str:
     if not url:
         raise RuntimeError("DATABASE_URL is required")
     return url
+
+
+def _get_pixazo_key() -> str:
+    key = os.getenv("PIXAZO_SUBSCRIPTION_KEY")
+    if not key:
+        raise RuntimeError("PIXAZO_SUBSCRIPTION_KEY is required")
+    return key
+
+
+def _get_pixazo_url() -> str:
+    return os.getenv("PIXAZO_URL", "https://gateway.pixazo.ai/flux-1-schnell/v1/getData")
 
 
 def _fetch_context(match_id: str) -> Dict[str, Any]:
@@ -226,7 +243,44 @@ def _fetch_dynamic_context(
 
 
 def _run_workflow(state: Dict[str, Any]) -> Dict[str, Any]:
-    return _sanitize(workflow.invoke(state))
+    result = _sanitize(workflow.invoke(state))
+    return _normalize_plan(result)
+
+
+def _normalize_plan(result: Dict[str, Any]) -> Dict[str, Any]:
+    plan = result.get("plan")
+    if not isinstance(plan, dict):
+        return result
+
+    nested = plan.get("plan")
+    if isinstance(nested, dict):
+        plan = nested
+        result["plan"] = plan
+
+    promotions = plan.get("promotions")
+    if isinstance(promotions, list):
+        return result
+
+    if isinstance(promotions, dict):
+        items = promotions.get("items")
+        if isinstance(items, list):
+            plan["promotions"] = items
+            return result
+
+    if isinstance(promotions, str):
+        lines = [line.strip().lstrip("•-") for line in promotions.splitlines()]
+        clean_lines = [line.strip() for line in lines if line.strip()]
+        if clean_lines:
+            plan["promotions"] = [
+                {"product": "", "promo": line, "reason": ""} for line in clean_lines
+            ]
+            return result
+
+    fallback = plan.get("recommendations") or plan.get("promo_recommendations")
+    if isinstance(fallback, list):
+        plan["promotions"] = fallback
+
+    return result
 
 
 @app.post("/agents/run")
@@ -257,6 +311,46 @@ def run_agents_raw(data: RawRunRequest):
         "retry_count": 0,
     }
     return _run_workflow(state)
+
+
+@app.post("/agents/generate_image")
+def generate_image(data: ImageRequest):
+    prompt = data.prompt.strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="prompt is required")
+
+    try:
+        key = _get_pixazo_key()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    payload = {
+        "prompt": prompt,
+        "num_steps": 4,
+        "seed": random.randint(1, 10_000_000),
+        "height": 512,
+        "width": 512,
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "Ocp-Apim-Subscription-Key": key,
+    }
+
+    try:
+        response = requests.post(_get_pixazo_url(), json=payload, headers=headers, timeout=60)
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail="image generation request failed") from exc
+
+    if response.status_code >= 400:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+
+    data = response.json()
+    output_url = data.get("output")
+    if not output_url:
+        raise HTTPException(status_code=502, detail="image generation returned empty output")
+
+    return {"image_url": output_url, "prompt": prompt}
 
 
 @app.post("/agents/run_dynamic")
